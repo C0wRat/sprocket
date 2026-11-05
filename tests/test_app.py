@@ -129,6 +129,9 @@ def test_bad_requests_are_rejected(client):
     assert client.post("/api/scan", json={"sharpen": "extreme"}).status_code == 422
     assert client.get("/api/preview.jpg", params={"rotate": 45}).status_code == 422
     assert client.get("/api/preview.jpg", params={"warmth": -101}).status_code == 422
+    for crop in ("nan,0,1,1", "0,0,inf,1", "0,0,1", "a,b,c,d"):
+        response = client.get("/api/levels", params={"crop": crop})
+        assert response.status_code == 400 and "four numbers" in response.json()["detail"], crop
     assert client.get("/files/..%2F..%2Fetc%2Fpasswd").status_code == 404
 
 

@@ -1,5 +1,6 @@
 """HTTP API and the static web UI."""
 
+import math
 from pathlib import Path
 from typing import Annotated
 
@@ -102,9 +103,12 @@ def _parse_crop(text: str | None) -> tuple[float, float, float, float] | None:
     if not text:
         return None
     try:
-        x0, y0, x1, y1 = (min(max(float(v), 0.0), 1.0) for v in text.split(","))
+        values = [float(v) for v in text.split(",")]
+        if len(values) != 4 or not all(math.isfinite(v) for v in values):
+            raise ValueError
     except ValueError:
         raise HTTPException(400, "crop must be four numbers: x0,y0,x1,y1") from None
+    x0, y0, x1, y1 = (min(max(v, 0.0), 1.0) for v in values)
     if x1 - x0 < 0.01 or y1 - y0 < 0.01:
         return None
     return x0, y0, x1, y1
