@@ -8,6 +8,7 @@ const el = {
   alert: $('alert'), alertText: $('alert-text'), alertClose: $('alert-close'),
   jobbar: $('jobbar'), bar: $('bar'), jobText: $('job-text'), jobTime: $('job-time'), cancel: $('cancel'),
   film: $('film'), adjustReset: $('adjust-reset'), adjustHint: $('adjust-hint'),
+  lock: $('lock'), lockLabel: $('lock-label'), lockHint: $('lock-hint'),
   rotate: $('rotate'), mirror: $('mirror'), cropInfo: $('crop-info'), cropReset: $('crop-reset'),
   resolution: $('resolution'), sizeHint: $('size-hint'), roll: $('roll'), frameNo: $('frame-no'),
   saveJpeg: $('save-jpeg'), saveTiff: $('save-tiff'),
@@ -16,6 +17,7 @@ const el = {
 };
 
 const FILMS = ['color-negative', 'slide', 'bw-negative'];
+const FILM_NAMES = { 'color-negative': 'colour negative', slide: 'slide', 'bw-negative': 'black & white negative' };
 const FALLBACK_CAPS = { resolutions: [600, 1200, 2400, 3600, 7200], width_mm: 36.33, height_mm: 25 };
 const STORAGE_KEY = 'sprocket.settings.v1';
 // The Adjust sliders, -100 to 100. The last three do nothing for black & white film.
@@ -25,6 +27,8 @@ const sliders = Object.fromEntries(SLIDERS.map((name) => [name, { input: $(name)
 const DEFAULTS = {
   film: 'color-negative', brightness: 0, contrast: 0, saturation: 0, warmth: 0, tint: 0,
   rotate: 0, mirror: false, crop: null,
+  // Locked colours: the levels of one frame, { film, roll, low: [r, g, b], high: [r, g, b] }.
+  lock: null,
   resolution: 3600, roll: 'roll-01', frame: 1, saveJpeg: true, saveTiff: true,
 };
 
@@ -53,6 +57,7 @@ function loadSettings() {
   }
   if (![0, 90, 180, 270].includes(s.rotate)) s.rotate = 0;
   if (!isValidCrop(s.crop)) s.crop = null;
+  if (!isValidLock(s.lock)) s.lock = null;
   return s;
 }
 
@@ -60,6 +65,15 @@ function isValidCrop(c) {
   return Boolean(c) && ['x0', 'y0', 'x1', 'y1'].every((k) => Number.isFinite(c[k]) && c[k] >= 0 && c[k] <= 1)
     && c.x1 - c.x0 >= 0.01 && c.y1 - c.y0 >= 0.01;
 }
+
+function isValidLock(l) {
+  const raw = (v) => Number.isFinite(v) && v >= 0 && v <= 65535;
+  return Boolean(l) && FILMS.includes(l.film) && [l.low, l.high].every((a) => Array.isArray(a) && a.length === 3 && a.every(raw))
+    && l.low.every((v, i) => v <= l.high[i]);
+}
+
+// The lock applies only to the film type it was made for.
+const activeLock = () => (settings.lock?.film === settings.film ? settings.lock : null);
 
 function saveSettings() {
   try {
@@ -114,6 +128,7 @@ function applyStatus(s) {
   if (s.preview.id && s.preview.id !== shownPreview) {
     shownPreview = s.preview.id;
     renderPreview();
+    renderLock();
   }
   follow(job);
 }
@@ -148,6 +163,7 @@ function scanSaved(result) {
   el.roll.value = settings.roll;
   el.frameNo.value = settings.frame;
   saveSettings();
+  renderLock();
   loadScans();
 }
 
@@ -183,9 +199,9 @@ async function renderPreview() {
   const params = new URLSearchParams({
     ...adjustments(), rotate: settings.rotate, mirror: settings.mirror, v: shownPreview,
   });
-  if (settings.crop) {
-    params.set('crop', ['x0', 'y0', 'x1', 'y1'].map((k) => settings.crop[k].toFixed(4)).join(','));
-  }
+  if (settings.crop) params.set('crop', cropParam(settings.crop));
+  const lock = activeLock();
+  if (lock) params.set('levels', [...lock.low, ...lock.high].join(','));
   try {
     const res = await fetch(`/api/preview.jpg?${params}`);
     if (res.status === 404) return; // the server restarted and has no preview
@@ -212,6 +228,8 @@ async function renderPreview() {
 }
 
 const schedulePreview = debounce(renderPreview, 120);
+
+const cropParam = (crop) => ['x0', 'y0', 'x1', 'y1'].map((k) => crop[k].toFixed(4)).join(',');
 
 // Size the preview to fit the stage, keeping its aspect ratio.
 function fitFrame() {
@@ -377,8 +395,53 @@ function setSliders(values) {
   schedulePreview();
 }
 
+function renderLock() {
+  const lock = settings.lock;
+  const active = activeLock();
+  el.lock.setAttribute('aria-pressed', String(Boolean(lock)));
+  el.lockLabel.textContent = lock ? 'Colours locked' : 'Lock colours';
+  el.lock.title = lock ? 'Unlock: measure the colours of each frame again' : 'Use the colours of this frame for the rest of the roll';
+  el.lock.disabled = !lock && !shownPreview; // locking needs a preview; unlocking doesn't
+  let hint;
+  if (!lock) {
+    hint = shownPreview
+      ? 'Use this frame’s colours for the rest of the roll, so every frame matches.'
+      : 'Preview a frame with good colours, then lock them for the whole roll.';
+  } else if (!active) {
+    hint = `Not in use: the lock is for ${FILM_NAMES[lock.film]} film.`;
+  } else if (lock.roll !== settings.roll) {
+    hint = `Locked on roll “${lock.roll}”. Unlock if this is a different film.`;
+  } else {
+    hint = 'Every frame gets the colours of the frame you locked on. The sliders still work.';
+  }
+  el.lockHint.textContent = hint;
+  el.lockHint.classList.toggle('lock-warning', Boolean(lock) && (!active || lock.roll !== settings.roll));
+}
+
+async function toggleLock() {
+  if (settings.lock) {
+    settings.lock = null;
+  } else {
+    const params = new URLSearchParams({ film: settings.film });
+    if (settings.crop) params.set('crop', cropParam(settings.crop));
+    el.lock.disabled = true;
+    try {
+      const { low, high } = await api(`/api/levels?${params}`);
+      settings.lock = { film: settings.film, roll: settings.roll, low, high };
+    } catch (err) {
+      showAlert(err.message);
+      renderLock();
+      return;
+    }
+  }
+  saveSettings();
+  renderLock();
+  renderPreview();
+}
+
 function renderControls() {
   renderFilm();
+  renderLock();
   el.mirror.setAttribute('aria-pressed', String(settings.mirror));
   el.roll.value = settings.roll;
   el.frameNo.value = settings.frame;
@@ -394,9 +457,11 @@ function bindControls() {
       settings.film = b.dataset.value;
       saveSettings();
       renderFilm();
+      renderLock();
       renderPreview();
     });
   }
+  el.lock.addEventListener('click', toggleLock);
   for (const name of SLIDERS) {
     const { input } = sliders[name];
     input.addEventListener('input', () => setSliders({ [name]: Number(input.value) }));
@@ -439,6 +504,7 @@ function bindControls() {
     el.roll.value = settings.roll;
     el.frameNo.value = settings.frame;
     saveSettings();
+    renderLock();
   });
   el.frameNo.addEventListener('change', () => {
     const n = Math.round(Number(el.frameNo.value));
@@ -484,6 +550,7 @@ async function startJob(kind) {
       rotate: settings.rotate,
       mirror: settings.mirror,
       crop: settings.crop,
+      levels: activeLock() && { low: settings.lock.low, high: settings.lock.high },
       roll: settings.roll || 'roll',
       frame: Number(settings.frame) || 0,
       save_jpeg: settings.saveJpeg,

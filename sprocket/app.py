@@ -7,8 +7,8 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import library
-from .service import Adjustments, Busy, NotConnected, ScannerService, ScanRequest
+from . import imaging, library
+from .service import Adjustments, Busy, FilmType, LockedLevels, NotConnected, ScannerService, ScanRequest
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -61,11 +61,21 @@ def create_app(service: ScannerService) -> FastAPI:
         return {"cancelled": service.cancel()}
 
     @app.get("/api/preview.jpg")
-    def preview_image(adjustments: Annotated[Adjustments, Query()], crop: str | None = None) -> Response:
-        data = service.render_preview(adjustments.adjust, _parse_crop(crop))
+    def preview_image(
+        adjustments: Annotated[Adjustments, Query()], crop: str | None = None, levels: str | None = None
+    ) -> Response:
+        data = service.render_preview(adjustments.adjust, _parse_crop(crop), _parse_levels(levels))
         if data is None:
             raise HTTPException(404, "No preview yet.")
         return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/levels")
+    def preview_levels(film: FilmType = "color-negative", crop: str | None = None) -> dict:
+        """The preview's levels, for locking a roll's colours to this frame's."""
+        levels = service.preview_levels(film, _parse_crop(crop))
+        if levels is None:
+            raise HTTPException(404, "No preview yet. Press Preview first.")
+        return {"film": film, "low": levels.low, "high": levels.high}
 
     @app.get("/api/scans")
     def scans(limit: int = Query(60, ge=1, le=500)) -> dict:
@@ -98,3 +108,16 @@ def _parse_crop(text: str | None) -> tuple[float, float, float, float] | None:
     if x1 - x0 < 0.01 or y1 - y0 < 0.01:
         return None
     return x0, y0, x1, y1
+
+
+def _parse_levels(text: str | None) -> imaging.Levels | None:
+    """"lowR,lowG,lowB,highR,highG,highB" (raw values, as GET /api/levels gives them) -> Levels, or None."""
+    if not text:
+        return None
+    try:
+        values = [float(v) for v in text.split(",")]
+        if len(values) != 6:
+            raise ValueError
+        return LockedLevels(low=values[:3], high=values[3:]).to_imaging()
+    except ValueError:  # includes pydantic's ValidationError
+        raise HTTPException(400, "levels must be six numbers from 0 to 65535: lowR,lowG,lowB,highR,highG,highB") from None

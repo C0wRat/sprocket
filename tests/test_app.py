@@ -1,7 +1,9 @@
 import time
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from sprocket.app import create_app
 from sprocket.service import ScannerService
@@ -75,6 +77,40 @@ def test_preview_then_scan(client, output):
     assert scan["name"] == "Trip 1-03"
     assert client.get(scan["files"]["jpeg"]["url"]).status_code == 200
     assert client.get("/api/next-frame", params={"roll": "Trip 1"}).json() == {"roll": "Trip 1", "frame": 4}
+
+
+def test_colours_can_be_locked_to_a_frame(client, output):
+    assert client.get("/api/levels").status_code == 404  # nothing to measure yet
+    client.post("/api/preview")
+    assert wait_for_job(client)["state"] == "done"
+
+    lock = client.get("/api/levels", params={"film": "color-negative", "crop": "0.1,0.1,0.9,0.9"}).json()
+    assert lock["film"] == "color-negative"
+    assert all(lo < hi for lo, hi in zip(lock["low"], lock["high"]))
+    levels = ",".join(str(v) for v in lock["low"] + lock["high"])
+    # The preview with the frame's own levels looks the same as measuring them again.
+    locked = client.get("/api/preview.jpg", params={"crop": "0.1,0.1,0.9,0.9", "levels": levels})
+    unlocked = client.get("/api/preview.jpg", params={"crop": "0.1,0.1,0.9,0.9"})
+    assert locked.status_code == 200 and locked.content == unlocked.content
+    assert client.get("/api/preview.jpg", params={"levels": "1,2,3"}).status_code == 400
+    assert client.get("/api/preview.jpg", params={"levels": "5,5,5,1,1,1"}).status_code == 400  # low above high
+    assert client.get("/api/preview.jpg", params={"levels": "0,0,0,9e9,1,1"}).status_code == 400
+
+    # Scans use the locked levels instead of measuring their own.
+    def scan(**extra):
+        assert client.post("/api/scan", json={"resolution": 100, "roll": "lock", **extra}).status_code == 202
+        job = wait_for_job(client)
+        assert job["state"] == "done", job
+        return np.asarray(Image.open(output / "lock" / f"{job['result']['name']}.jpg"), dtype=float)
+
+    own = scan()
+    same = scan(levels={"low": lock["low"], "high": lock["high"]})
+    # A film base three times as bright as this frame's: its blacks come out grey.
+    washed_out = scan(levels={"low": lock["low"], "high": [v * 3 for v in lock["high"]]})
+    assert abs(same.mean() - own.mean()) < 3
+    assert washed_out.mean() > own.mean() + 20
+    assert washed_out.min() > 30
+    assert client.post("/api/scan", json={"resolution": 100, "levels": {"low": [0, 0, 0], "high": [1, 1, 70000]}}).status_code == 422
 
 
 def test_bad_requests_are_rejected(client):

@@ -119,6 +119,14 @@
           <output id="tint-out">0</output>
         </label>
         <p class="hint" id="adjust-hint">Double-click a slider to set it back to 0.</p>
+        <button type="button" class="btn toggle lock" id="lock" aria-pressed="false" disabled>
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="2.5" y="7" width="11" height="7.5" rx="1.5" fill="currentColor"/>
+            <path class="shackle" d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          </svg>
+          <span id="lock-label">Lock colours</span>
+        </button>
+        <p class="hint" id="lock-hint"></p>
       </section>
 
       <section class="group">
@@ -142,11 +150,13 @@
         <label class="check"><input type="checkbox" id="save-tiff"> Raw TIFF <span class="hint">16-bit, unprocessed</span></label>
       </section>
 
-      <div class="actions">
-        <button type="button" class="btn" id="btn-preview" disabled>Preview <kbd>P</kbd></button>
-        <button type="button" class="btn primary" id="btn-scan" disabled>Scan <kbd>S</kbd></button>
+      <div class="dock">
+        <div class="actions">
+          <button type="button" class="btn" id="btn-preview" disabled>Preview <kbd>P</kbd></button>
+          <button type="button" class="btn primary" id="btn-scan" disabled>Scan <kbd>S</kbd></button>
+        </div>
+        <p class="hint output" id="output-dir"></p>
       </div>
-      <p class="hint output" id="output-dir"></p>
     </aside>
 
     <section class="gallery">

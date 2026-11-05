@@ -10,7 +10,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -67,6 +67,26 @@ def _floor2(value: float) -> float:
     return math.floor(value * 100) / 100
 
 
+RawValue = Annotated[float, Field(ge=0, le=65535)]
+
+
+class LockedLevels(BaseModel):
+    """Levels measured on one frame (GET /api/levels), reused to give other frames the
+    same colours. See imaging.Levels."""
+
+    low: tuple[RawValue, RawValue, RawValue]
+    high: tuple[RawValue, RawValue, RawValue]
+
+    @model_validator(mode="after")
+    def _check_order(self) -> "LockedLevels":
+        if any(lo > hi for lo, hi in zip(self.low, self.high)):
+            raise ValueError("each low level must not be above its high level")
+        return self
+
+    def to_imaging(self) -> imaging.Levels:
+        return imaging.Levels(self.low, self.high)
+
+
 def _display_path(path: Path) -> str:
     """The path with the home folder shown as ~."""
     try:
@@ -112,6 +132,7 @@ class Adjustments(BaseModel):
 class ScanRequest(Adjustments):
     resolution: int = 3600
     crop: Crop | None = None
+    levels: LockedLevels | None = None  # default: measured on the scan itself
     roll: str = Field("roll", max_length=200)
     frame: int = Field(1, ge=0, le=9999)
     save_jpeg: bool = True
@@ -202,11 +223,23 @@ class ScannerService:
             "output_dir": _display_path(self.output),
         }
 
-    def render_preview(self, adjust: imaging.Adjust, crop: tuple[float, float, float, float] | None) -> bytes | None:
+    def render_preview(
+        self,
+        adjust: imaging.Adjust,
+        crop: tuple[float, float, float, float] | None,
+        levels: imaging.Levels | None = None,
+    ) -> bytes | None:
         image = self._preview
         if image is None:
             return None
-        return imaging.encode_jpeg(imaging.render(image, adjust, stats_crop=crop))
+        return imaging.encode_jpeg(imaging.render(image, adjust, levels, stats_crop=crop))
+
+    def preview_levels(self, film: str, crop: tuple[float, float, float, float] | None) -> imaging.Levels | None:
+        """The levels of the frame in the preview, measured inside the crop."""
+        image = self._preview
+        if image is None:
+            return None
+        return imaging.measure_levels(image, film, crop)
 
     # --- jobs ------------------------------------------------------------------
 
@@ -322,7 +355,8 @@ class ScannerService:
         folder.mkdir(parents=True, exist_ok=True)
         base = library.unique_base(folder, f"{roll}-{req.frame:02d}")
         adjust = req.adjust
-        positive = imaging.render(image, adjust, margin=0.02 if req.crop else 0.04)
+        levels = req.levels.to_imaging() if req.levels else None
+        positive = imaging.render(image, adjust, levels, margin=0.02 if req.crop else 0.04)
         if req.save_jpeg:
             imaging.save_jpeg(folder / f"{base}.jpg", positive, req.resolution)
         if req.save_tiff:

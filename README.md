@@ -46,7 +46,8 @@ Then open <http://localhost:8800>. Useful options:
 7. Move the holder to the next frame. Press Preview and Scan again. The frame number counts up by itself.
 
 The crop, rotation and other settings are remembered, so a whole roll usually needs
-only Preview and Scan for each frame.
+only Preview and Scan for each frame. To give every frame of a roll the same colours,
+press **Lock colours** on a typical frame (see below).
 
 ## What gets saved
 
@@ -91,8 +92,15 @@ and nothing clips. Contrast is an S-curve through mid grey. Saturation moves eac
 pixel towards or away from grey. B&W film uses only Brightness and Contrast.
 
 Each frame is levelled on its own, so a frame that is mostly one colour (a sunset,
-say) can come out with its colours neutralised. The raw TIFF is there for frames
-like that.
+say) can come out with its colours neutralised, and the frames of a roll can differ.
+**Lock colours** fixes both: preview a frame of the roll with ordinary colours and
+lock it, and every later preview and scan uses that frame's black and white points
+instead of measuring its own. The film base of a roll is the same on every frame, so
+the whole roll matches and the sunset stays orange. Exposure differences between
+frames show up as they are, so adjust Brightness per frame if needed. The lock is kept
+until you unlock it, also across restarts, and only applies to the film type it was
+made for. Unlock it when you put in a different film; Sprocket reminds you when the
+roll name changes.
 
 ## Troubleshooting
 

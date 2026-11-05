@@ -280,6 +280,11 @@ h2 {
 .range:has(input:disabled) { opacity: .4; }
 .range input:disabled { cursor: not-allowed; }
 
+.btn.lock { width: 100%; margin-top: 14px; }
+.btn.lock svg { width: 14px; height: 14px; flex: none; }
+.btn.lock[aria-pressed="false"] .shackle { transform: translateX(3px) rotate(-12deg); transform-origin: 11px 7px; }
+.hint.lock-warning { color: var(--accent); }
+
 .crop-row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
 .link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
 .link:hover { text-decoration: underline; }
@@ -303,9 +308,19 @@ h2 {
 .hint { margin: 6px 0 0; color: var(--faint); font-size: 12px; }
 .check .hint { margin: 0; }
 
-.actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: auto; }
+/* Preview and Scan stay in view at the bottom of the panel while it scrolls. */
+.dock {
+  position: sticky;
+  bottom: -18px; /* sticky offsets count from inside the panel's padding */
+  z-index: 1;
+  margin: auto -18px -18px; /* over the panel's padding, edge to edge */
+  padding: 14px 18px 16px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+.actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
 .actions .btn { padding: 12px 14px; font-size: 15px; }
-.output { margin-top: -12px; overflow-wrap: anywhere; }
+.output { margin-top: 10px; overflow-wrap: anywhere; }
 
 /* --- Recent scans ---------------------------------------------------------- */
 
@@ -354,6 +369,6 @@ h2 {
   .stage { padding: 16px; }
   .panel { overflow: visible; border-left: 0; border-top: 1px solid var(--line); padding: 16px; }
   .topbar, .gallery { padding-left: 16px; padding-right: 16px; }
-  .actions { margin-top: 0; }
+  .dock { bottom: 0; margin: 0 -16px -16px; padding: 12px 16px; }
   .btn kbd { display: none; }
 }
