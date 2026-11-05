@@ -152,6 +152,16 @@
         </div>
         <label class="check"><input type="checkbox" id="save-jpeg"> JPEG <span class="hint">finished picture</span></label>
         <label class="check"><input type="checkbox" id="save-tiff"> Raw TIFF <span class="hint">16-bit, unprocessed</span></label>
+        <div class="field sharpen">
+          <span id="sharpen-label">Sharpen the JPEG</span>
+          <div class="segmented four" id="sharpen" role="radiogroup" aria-labelledby="sharpen-label">
+            <button type="button" role="radio" data-value="off">Off</button>
+            <button type="button" role="radio" data-value="low">Low</button>
+            <button type="button" role="radio" data-value="medium">Medium</button>
+            <button type="button" role="radio" data-value="high">High</button>
+          </div>
+          <span class="hint">Brings back the crispness scanning loses. Not shown in the preview.</span>
+        </div>
       </section>
 
       <div class="dock">

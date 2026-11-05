@@ -60,7 +60,10 @@ def test_preview_then_scan(client, output):
     assert adjusted.status_code == 200
 
     crop = {"x0": 0.1, "y0": 0.2, "x1": 0.9, "y1": 0.6}  # 29.06 x 10 mm: 229 x 79 px at 200 dpi
-    body = {"resolution": 200, "roll": "Trip 1", "frame": 3, "crop": crop, "rotate": 90, "contrast": 25, "warmth": -10}
+    body = {
+        "resolution": 200, "roll": "Trip 1", "frame": 3, "crop": crop, "rotate": 90,
+        "contrast": 25, "warmth": -10, "sharpen": "medium",
+    }
     assert client.post("/api/scan", json=body).status_code == 202
     job = wait_for_job(client)
     assert job["state"] == "done", job
@@ -120,6 +123,7 @@ def test_bad_requests_are_rejected(client):
     assert client.post("/api/scan", json={"crop": {"x0": 0.5, "y0": 0, "x1": 0.4, "y1": 1}}).status_code == 422
     assert client.post("/api/scan", json={"rotate": 45}).status_code == 422
     assert client.post("/api/scan", json={"saturation": 101}).status_code == 422
+    assert client.post("/api/scan", json={"sharpen": "extreme"}).status_code == 422
     assert client.get("/api/preview.jpg", params={"rotate": 45}).status_code == 422
     assert client.get("/api/preview.jpg", params={"warmth": -101}).status_code == 422
     assert client.get("/files/..%2F..%2Fetc%2Fpasswd").status_code == 404

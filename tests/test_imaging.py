@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import tifffile
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from sprocket import imaging
 from sprocket.imaging import Adjust, measure_levels, orient, render, save_jpeg, save_tiff
@@ -112,6 +112,36 @@ def test_black_and_white_film_ignores_the_colour_controls():
     plain = render(negative(), Adjust("bw-negative"))
     coloured = render(negative(), Adjust("bw-negative", saturation=0.8, warmth=-0.6, tint=0.4))
     assert np.array_equal(plain, coloured)
+
+
+@pytest.mark.parametrize("dpi", [600, 3600, 7200])
+@pytest.mark.parametrize("shape", [(61, 37, 3), (61, 37)])
+def test_sharpening_in_strips_matches_the_whole_picture(shape, dpi, monkeypatch):
+    image = np.random.default_rng(1).integers(0, 256, shape, dtype=np.uint8)
+    radius = min(max(dpi / 3600, 0.5), 2.0)
+    unsharp = ImageFilter.UnsharpMask(radius=radius, percent=imaging.SHARPEN_PERCENT["high"], threshold=3)
+    expected = np.asarray(Image.fromarray(np.ascontiguousarray(orient(image, 90, True))).filter(unsharp))
+    monkeypatch.setattr(imaging, "SHARPEN_STRIP_PIXELS", 37 * 2)  # strips as short as the overlap allows
+    picture = orient(image.copy(), 90, True)  # a view, as render() returns it
+    imaging.sharpen(picture, "high", dpi)
+    assert np.array_equal(picture, expected)
+    still = image.copy()
+    imaging.sharpen(still, "off", dpi)
+    assert np.array_equal(still, image)
+
+
+def test_sharpening_adds_edge_contrast():
+    edge = np.zeros((40, 40, 3), np.uint8)
+    edge[:, :20], edge[:, 20:] = 80, 170
+    for strength in ("low", "medium", "high"):
+        out = edge.copy()
+        imaging.sharpen(out, strength, 3600)
+        assert out[:, 19].mean() < 80 and out[:, 20].mean() > 170  # halo on either side
+        assert out[:, :15].mean() == 80 and out[:, 25:].mean() == 170  # flat areas untouched
+    low, high = edge.copy(), edge.copy()
+    imaging.sharpen(low, "low", 3600)
+    imaging.sharpen(high, "high", 3600)
+    assert high[:, 20].mean() > low[:, 20].mean()
 
 
 def test_levels_are_measured_inside_the_crop():

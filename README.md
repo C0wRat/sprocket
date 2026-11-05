@@ -61,6 +61,9 @@ press **Lock colours** on a typical frame (see below).
 
 - The **JPEG** is the picture to share and print. Negatives are inverted and the
   orange mask is removed. Levels are set automatically from what's inside the crop.
+  **Sharpen the JPEG** (Low, Medium or High) gives it an unsharp mask that scales with
+  the resolution and leaves grain-sized differences alone. It isn't shown in the
+  preview, and at 7200 dpi it adds about 3 s to saving.
 - The **raw TIFF** is the 16-bit linear data from the scanner, only cropped and
   rotated. Keep it if you want to do your own conversion later, e.g. with darktable's
   negadoctor, RawTherapee's film negative tool or Negative Lab Pro. A raw TIFF looks

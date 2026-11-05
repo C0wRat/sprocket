@@ -213,6 +213,10 @@ h2 {
 }
 .segmented button:hover { color: var(--text); }
 .segmented button[aria-checked="true"] { background: var(--raised-hover); color: var(--text); font-weight: 600; }
+.segmented button:disabled { opacity: .45; cursor: not-allowed; }
+.segmented.four { grid-template-columns: repeat(4, 1fr); }
+.field.sharpen { margin-top: 16px; }
+.field.sharpen .hint { margin: 0; }
 
 .btn {
   display: inline-flex;

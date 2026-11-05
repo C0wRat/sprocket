@@ -8,9 +8,17 @@ from pathlib import Path
 
 import numpy as np
 import tifffile
-from PIL import Image
+from PIL import Image, ImageFilter
 
 FILM_TYPES = ("color-negative", "slide", "bw-negative")
+# Unsharp mask strength (percent) for each Sharpen setting.
+SHARPEN_PERCENT = {"low": 60, "medium": 110, "high": 180}
+# Differences smaller than this (out of 255) are left alone, so that film grain and noise
+# in smooth areas are not sharpened as well.
+SHARPEN_THRESHOLD = 3
+# Sharpening works on bigger strips than the conversion, as each strip needs some rows
+# of overlap with its neighbours.
+SHARPEN_STRIP_PIXELS = 1 << 22
 
 # Midtone contrast for negatives: exponent applied after inverting in density space.
 NEGATIVE_GAMMA = 1.3
@@ -222,6 +230,30 @@ def _slide_curve(low: float, high: float) -> np.ndarray:
     linear = np.clip((np.arange(65536, dtype=np.float64) - low) / (hi - low), 0.0, 1.0)
     encoded = np.where(linear <= 0.0031308, 12.92 * linear, 1.055 * linear ** (1 / 2.4) - 0.055)
     return np.clip(encoded, 0.0, 1.0)
+
+
+def sharpen(image: np.ndarray, strength: str, dpi: int) -> None:
+    """Unsharp mask, in place: strength "off", "low", "medium" or "high".
+
+    The radius grows with the resolution (1 px at 3600 dpi), so a setting looks alike at
+    every resolution. Works a strip at a time with a few rows of overlap, which gives
+    the same result as filtering the whole picture at once with far less memory.
+    """
+    if strength == "off":
+        return
+    radius = min(max(dpi / 3600, 0.5), 2.0)
+    unsharp = ImageFilter.UnsharpMask(radius=radius, percent=SHARPEN_PERCENT[strength], threshold=SHARPEN_THRESHOLD)
+    pad = math.ceil(4 * radius) + 2  # rows of context each side: more than the blur reaches
+    height, width = image.shape[:2]
+    rows = max(SHARPEN_STRIP_PIXELS // max(width, 1), pad)
+    above = image[:0].copy()  # the unsharpened rows just above the current strip
+    for top in range(0, height, rows):
+        bottom = min(top + rows, height)
+        source = np.concatenate((above, image[top : min(bottom + pad, height)]))
+        start = len(above)
+        above = image[max(top, bottom - pad) : bottom].copy()  # before they are overwritten
+        sharpened = np.asarray(Image.fromarray(source).filter(unsharp))
+        image[top:bottom] = sharpened[start : start + bottom - top]
 
 
 def encode_jpeg(image: np.ndarray, quality: int = 88) -> bytes:

@@ -13,7 +13,7 @@ const el = {
   histogramBox: $('histogram-box'), histogram: $('histogram'), clipping: $('clipping'),
   rotate: $('rotate'), mirror: $('mirror'), cropInfo: $('crop-info'), cropReset: $('crop-reset'),
   resolution: $('resolution'), sizeHint: $('size-hint'), roll: $('roll'), frameNo: $('frame-no'),
-  saveJpeg: $('save-jpeg'), saveTiff: $('save-tiff'),
+  saveJpeg: $('save-jpeg'), saveTiff: $('save-tiff'), sharpen: $('sharpen'),
   btnPreview: $('btn-preview'), btnScan: $('btn-scan'), outputDir: $('output-dir'),
   scans: $('scans'), scansEmpty: $('scans-empty'), toast: $('toast'),
 };
@@ -31,8 +31,9 @@ const DEFAULTS = {
   rotate: 0, mirror: false, crop: null,
   // Locked colours: the levels of one frame, { film, roll, low: [r, g, b], high: [r, g, b] }.
   lock: null,
-  resolution: 3600, roll: 'roll-01', frame: 1, saveJpeg: true, saveTiff: true,
+  resolution: 3600, roll: 'roll-01', frame: 1, saveJpeg: true, saveTiff: true, sharpen: 'off',
 };
+const SHARPEN = ['off', 'low', 'medium', 'high'];
 
 const settings = loadSettings();
 let status = null;
@@ -60,6 +61,7 @@ function loadSettings() {
   if (![0, 90, 180, 270].includes(s.rotate)) s.rotate = 0;
   if (!isValidCrop(s.crop)) s.crop = null;
   if (!isValidLock(s.lock)) s.lock = null;
+  if (!SHARPEN.includes(s.sharpen)) s.sharpen = DEFAULTS.sharpen;
   return s;
 }
 
@@ -474,6 +476,13 @@ async function toggleLock() {
   renderPreview();
 }
 
+function renderSharpen() {
+  for (const b of el.sharpen.querySelectorAll('button')) {
+    b.setAttribute('aria-checked', String(b.dataset.value === settings.sharpen));
+    b.disabled = !settings.saveJpeg;
+  }
+}
+
 function renderControls() {
   renderFilm();
   renderLock();
@@ -482,6 +491,7 @@ function renderControls() {
   el.frameNo.value = settings.frame;
   el.saveJpeg.checked = settings.saveJpeg;
   el.saveTiff.checked = settings.saveTiff;
+  renderSharpen();
   renderResolutions(FALLBACK_CAPS);
   renderCropInfo();
 }
@@ -547,8 +557,15 @@ function bindControls() {
     el.frameNo.value = settings.frame;
     saveSettings();
   });
-  el.saveJpeg.addEventListener('change', () => { settings.saveJpeg = el.saveJpeg.checked; saveSettings(); });
+  el.saveJpeg.addEventListener('change', () => { settings.saveJpeg = el.saveJpeg.checked; saveSettings(); renderSharpen(); });
   el.saveTiff.addEventListener('change', () => { settings.saveTiff = el.saveTiff.checked; saveSettings(); });
+  for (const b of el.sharpen.querySelectorAll('button')) {
+    b.addEventListener('click', () => {
+      settings.sharpen = b.dataset.value;
+      saveSettings();
+      renderSharpen();
+    });
+  }
 
   el.btnPreview.addEventListener('click', () => startJob('preview'));
   el.btnScan.addEventListener('click', () => startJob('scan'));
@@ -590,6 +607,7 @@ async function startJob(kind) {
       frame: Number(settings.frame) || 0,
       save_jpeg: settings.saveJpeg,
       save_tiff: settings.saveTiff,
+      sharpen: settings.sharpen,
     }) : undefined;
     const job = await api(`/api/${kind}`, { method: 'POST', body });
     tracked = { id: job.id, state: job.state, sawResult: false };

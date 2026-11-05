@@ -137,6 +137,7 @@ class ScanRequest(Adjustments):
     frame: int = Field(1, ge=0, le=9999)
     save_jpeg: bool = True
     save_tiff: bool = True
+    sharpen: Literal["off", "low", "medium", "high"] = "off"  # the JPEG only
 
 
 @dataclass
@@ -358,6 +359,7 @@ class ScannerService:
         levels = req.levels.to_imaging() if req.levels else None
         positive = imaging.render(image, adjust, levels, margin=0.02 if req.crop else 0.04)
         if req.save_jpeg:
+            imaging.sharpen(positive, req.sharpen, req.resolution)
             imaging.save_jpeg(folder / f"{base}.jpg", positive, req.resolution)
         if req.save_tiff:
             raw = imaging.orient(image, adjust.rotate, adjust.mirror)
