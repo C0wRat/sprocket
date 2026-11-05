@@ -459,12 +459,14 @@ async function toggleLock() {
   if (settings.lock) {
     settings.lock = null;
   } else {
-    const params = new URLSearchParams({ film: settings.film });
+    // Remember what was measured, in case the film type or roll changes while waiting.
+    const { film, roll } = settings;
+    const params = new URLSearchParams({ film });
     if (settings.crop) params.set('crop', cropParam(settings.crop));
     el.lock.disabled = true;
     try {
       const { low, high } = await api(`/api/levels?${params}`);
-      settings.lock = { film: settings.film, roll: settings.roll, low, high };
+      settings.lock = { film, roll, low, high };
     } catch (err) {
       showAlert(err.message);
       renderLock();
