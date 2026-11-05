@@ -221,13 +221,20 @@ def _colour_shifts(warmth: float, tint: float) -> tuple[float, float, float]:
 
 
 def _contrast(curve: np.ndarray, amount: float) -> np.ndarray:
-    """An S-curve through mid grey, steeper there for amount > 0 and flatter for < 0.
-    Black and white stay where they are."""
-    if amount == 0:
-        return curve
-    k = 2.0**amount
-    rise = curve**k
-    return rise / (rise + (1.0 - curve) ** k)
+    """A curve through mid grey, steeper there for amount > 0 (up to twice) and flatter
+    for amount < 0 (down to half). Black and white stay where they are.
+
+    More contrast is an S-curve that flattens towards black and white. Less contrast is
+    a cubic that is at most twice as steep there, so it lifts the deepest shadows only
+    gently and doesn't bring up their noise.
+    """
+    if amount > 0:
+        k = 2.0**amount
+        rise = curve**k
+        return rise / (rise + (1.0 - curve) ** k)
+    if amount < 0:
+        return curve + amount * curve * (1.0 - curve) * (2.0 * curve - 1.0)
+    return curve
 
 
 def _saturate(rgb: np.ndarray, factor: float) -> np.ndarray:

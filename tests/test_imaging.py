@@ -80,6 +80,18 @@ def test_contrast_is_an_s_curve():
     assert punchy.std() > normal.std() > flat.std()
 
 
+@pytest.mark.parametrize("amount", [-1.0, -0.4, 0.4, 1.0])
+def test_contrast_curves_are_smooth(amount):
+    x = np.linspace(0, 1, 4097)
+    y = imaging._contrast(x, amount)
+    slope = np.diff(y) / np.diff(x)
+    assert y[0] == 0 and y[-1] == 1 and y[2048] == pytest.approx(0.5)
+    assert slope.min() >= 0  # tones stay in order
+    assert slope.max() <= 2.05  # never steep enough to blow up noise in the deep shadows
+    # The darkest level above black stays dark, unlike with an S-curve run backwards.
+    assert imaging._contrast(np.array([1 / 255]), amount)[0] * 255 < 2.5
+
+
 def test_saturation():
     levels = measure_levels(negative(), "color-negative")
     image = negative()
