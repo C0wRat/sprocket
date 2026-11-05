@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from . import imaging, library
 from .scanner import (
@@ -76,21 +76,46 @@ def _display_path(path: Path) -> str:
     return "~" if relative == Path(".") else f"~/{relative.as_posix()}"
 
 
-class ScanRequest(BaseModel):
+class Adjustments(BaseModel):
+    """How the raw scan becomes a picture. The sliders run from -100 to 100."""
+
     film: FilmType = "color-negative"
-    resolution: int = 3600
     brightness: float = Field(0, ge=-100, le=100)
-    rotate: Literal[0, 90, 180, 270] = 0
+    contrast: float = Field(0, ge=-100, le=100)
+    saturation: float = Field(0, ge=-100, le=100)
+    warmth: float = Field(0, ge=-100, le=100)
+    tint: float = Field(0, ge=-100, le=100)
+    rotate: int = 0
     mirror: bool = False
+
+    @field_validator("rotate")
+    @classmethod
+    def _check_rotate(cls, value: int) -> int:
+        if value not in (0, 90, 180, 270):
+            raise ValueError("rotate must be 0, 90, 180 or 270")
+        return value
+
+    @property
+    def adjust(self) -> imaging.Adjust:
+        return imaging.Adjust(
+            self.film,
+            brightness=self.brightness / 100,
+            contrast=self.contrast / 100,
+            saturation=self.saturation / 100,
+            warmth=self.warmth / 100,
+            tint=self.tint / 100,
+            rotate=self.rotate,
+            mirror=self.mirror,
+        )
+
+
+class ScanRequest(Adjustments):
+    resolution: int = 3600
     crop: Crop | None = None
     roll: str = Field("roll", max_length=200)
     frame: int = Field(1, ge=0, le=9999)
     save_jpeg: bool = True
     save_tiff: bool = True
-
-    @property
-    def adjust(self) -> imaging.Adjust:
-        return imaging.Adjust(self.film, self.brightness / 100, self.rotate, self.mirror)
 
 
 @dataclass

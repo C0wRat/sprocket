@@ -38,10 +38,12 @@ Then open <http://localhost:8800>. Useful options:
 2. Choose the film type: **Color neg**, **Slide** or **B&W neg**.
 3. Press **Preview** (or the P key). It takes about 18 seconds.
 4. Drag on the preview to crop out the holder's edges, and drag the box to move it.
-   Use **Rotate** and **Mirror** if the picture is the wrong way round or backwards,
-   and **Brightness** to taste. The preview updates right away without scanning again.
-5. Set the roll name and frame number, pick a resolution, and press **Scan** (or S).
-6. Move the holder to the next frame. Press Preview and Scan again. The frame number counts up by itself.
+   Use **Rotate** and **Mirror** if the picture is the wrong way round or backwards.
+5. Fine-tune the picture with the **Adjust** sliders: Brightness, Contrast, Saturation,
+   Warmth (bluer to more orange) and Tint (greener to more magenta). The preview updates
+   right away without scanning again. Double-click a slider to set it back to 0.
+6. Set the roll name and frame number, pick a resolution, and press **Scan** (or S).
+7. Move the holder to the next frame. Press Preview and Scan again. The frame number counts up by itself.
 
 The crop, rotation and other settings are remembered, so a whole roll usually needs
 only Preview and Scan for each frame.
@@ -79,10 +81,14 @@ The scanner returns linear light values. For a negative, Sprocket converts each
 channel to density (a log scale), then stretches it between the clearest part of the
 frame, which becomes black, and the densest part, which becomes white. The top and
 bottom 0.1 % of pixels are allowed to clip. Doing this per channel cancels the orange
-mask of colour film. A gentle contrast curve is then applied, and the Brightness
-slider adjusts it. Slides keep their own colour balance: they get shared black and
-white points and the standard sRGB curve. B&W negatives are scanned in colour and
-mixed down to grey.
+mask of colour film. A gentle contrast curve is then applied. Slides keep their own
+colour balance: they get shared black and white points and the standard sRGB curve.
+B&W negatives are scanned in colour and mixed down to grey.
+
+The Adjust sliders work on top of that. Brightness bends the midtones, and Warmth and
+Tint do the same for single colour channels, so black stays black, white stays white
+and nothing clips. Contrast is an S-curve through mid grey. Saturation moves each
+pixel towards or away from grey. B&W film uses only Brightness and Contrast.
 
 Each frame is levelled on its own, so a frame that is mostly one colour (a sunset,
 say) can come out with its colours neutralised. The raw TIFF is there for frames

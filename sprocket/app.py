@@ -1,13 +1,14 @@
 """HTTP API and the static web UI."""
 
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import imaging, library
-from .service import Busy, FilmType, NotConnected, ScannerService, ScanRequest
+from . import library
+from .service import Adjustments, Busy, NotConnected, ScannerService, ScanRequest
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -60,17 +61,8 @@ def create_app(service: ScannerService) -> FastAPI:
         return {"cancelled": service.cancel()}
 
     @app.get("/api/preview.jpg")
-    def preview_image(
-        film: FilmType = "color-negative",
-        brightness: float = Query(0, ge=-100, le=100),
-        rotate: int = 0,
-        mirror: bool = False,
-        crop: str | None = None,
-    ) -> Response:
-        if rotate not in (0, 90, 180, 270):
-            raise HTTPException(400, "rotate must be 0, 90, 180 or 270")
-        adjust = imaging.Adjust(film, brightness / 100, rotate, mirror)
-        data = service.render_preview(adjust, _parse_crop(crop))
+    def preview_image(adjustments: Annotated[Adjustments, Query()], crop: str | None = None) -> Response:
+        data = service.render_preview(adjustments.adjust, _parse_crop(crop))
         if data is None:
             raise HTTPException(404, "No preview yet.")
         return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})

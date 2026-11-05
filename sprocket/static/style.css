@@ -242,13 +242,45 @@ h2 {
   font: 11px/1.3 var(--font);
   opacity: .55;
 }
-.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
-.range { display: grid; grid-template-columns: auto 1fr 34px; align-items: center; gap: 10px; color: var(--muted); }
-.range input { width: 100%; accent-color: var(--accent); }
+.group-head { display: flex; align-items: baseline; justify-content: space-between; }
+.group-head .link { font-size: 12px; }
+
+.range { display: grid; grid-template-columns: 74px 1fr 34px; align-items: center; gap: 10px; color: var(--muted); }
+.range + .range { margin-top: 6px; }
 .range output { color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.range input {
+  --track: var(--line-strong);
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.range input::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--track); }
+.range input::-moz-range-track { height: 4px; border-radius: 2px; background: var(--track); }
+.range input::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.range input::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--accent); }
+.range input:hover::-webkit-slider-thumb { background: var(--accent-hover); }
+.range input:hover::-moz-range-thumb { background: var(--accent-hover); }
+.range input.track-warmth { --track: linear-gradient(to right, #4f86d6, var(--line-strong) 50%, #e8913a); }
+.range input.track-tint { --track: linear-gradient(to right, #4caf50, var(--line-strong) 50%, #c95fc9); }
+.range:has(input:disabled) { opacity: .4; }
+.range input:disabled { cursor: not-allowed; }
 
-.crop-row { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+.crop-row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
 .link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
 .link:hover { text-decoration: underline; }
 

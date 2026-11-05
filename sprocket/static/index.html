@@ -76,12 +76,7 @@
       </section>
 
       <section class="group">
-        <h2>Adjust</h2>
-        <label class="range">
-          <span>Brightness</span>
-          <input type="range" id="brightness" min="-100" max="100" step="1" value="0" title="Double-click to reset">
-          <output id="brightness-out">0</output>
-        </label>
+        <h2>Frame</h2>
         <div class="buttons">
           <button type="button" class="btn" id="rotate" title="Rotate 90° clockwise">⟳ Rotate</button>
           <button type="button" class="btn toggle" id="mirror" aria-pressed="false" title="Flip left to right">⇋ Mirror</button>
@@ -91,6 +86,39 @@
           <button type="button" class="link" id="crop-reset" hidden>Reset</button>
         </div>
         <p class="hint">Drag on the preview to crop. Drag the box to move it.</p>
+      </section>
+
+      <section class="group">
+        <div class="group-head">
+          <h2>Adjust</h2>
+          <button type="button" class="link" id="adjust-reset" hidden>Reset all</button>
+        </div>
+        <label class="range">
+          <span>Brightness</span>
+          <input type="range" id="brightness" min="-100" max="100" step="1" value="0" title="Double-click to reset">
+          <output id="brightness-out">0</output>
+        </label>
+        <label class="range">
+          <span>Contrast</span>
+          <input type="range" id="contrast" min="-100" max="100" step="1" value="0" title="Double-click to reset">
+          <output id="contrast-out">0</output>
+        </label>
+        <label class="range">
+          <span>Saturation</span>
+          <input type="range" id="saturation" min="-100" max="100" step="1" value="0" title="Double-click to reset">
+          <output id="saturation-out">0</output>
+        </label>
+        <label class="range">
+          <span>Warmth</span>
+          <input type="range" id="warmth" class="track-warmth" min="-100" max="100" step="1" value="0" title="Bluer ← → more orange. Double-click to reset">
+          <output id="warmth-out">0</output>
+        </label>
+        <label class="range">
+          <span>Tint</span>
+          <input type="range" id="tint" class="track-tint" min="-100" max="100" step="1" value="0" title="Greener ← → more magenta. Double-click to reset">
+          <output id="tint-out">0</output>
+        </label>
+        <p class="hint" id="adjust-hint">Double-click a slider to set it back to 0.</p>
       </section>
 
       <section class="group">

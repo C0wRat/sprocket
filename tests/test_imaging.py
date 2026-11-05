@@ -66,6 +66,54 @@ def test_brightness():
     assert means[0] < means[1] < means[2]
 
 
+def test_contrast_is_an_s_curve():
+    flat, normal, punchy = (render(negative(), Adjust(contrast=c))[10].mean(axis=1) for c in (-0.5, 0.0, 0.5))
+    assert np.all(np.diff(punchy) >= 0)  # tones stay in order
+    for curve in (flat, punchy):  # black and white stay put
+        assert curve[0] == normal[0] and curve[-1] == normal[-1]
+    dark, light = normal < 100, normal > 160
+    assert np.all(punchy[dark] <= normal[dark]) and np.all(punchy[light] >= normal[light])
+    assert np.all(flat[dark] >= normal[dark]) and np.all(flat[light] <= normal[light])
+    assert punchy.std() > normal.std() > flat.std()
+
+
+def test_saturation():
+    levels = measure_levels(negative(), "color-negative")
+    image = negative()
+    image[..., 0] = image[..., 0] * 0.8  # a denser red layer, with the grey ramp's levels: a reddish picture
+
+    def spread(out):
+        return (out.max(axis=-1).astype(int) - out.min(axis=-1)).mean()
+
+    normal = render(image, Adjust(), levels)
+    assert spread(normal) > 10
+    assert spread(render(image, Adjust(saturation=-1.0), levels)) <= 1  # grey
+    less, more = (render(image, Adjust(saturation=s), levels) for s in (-0.5, 0.5))
+    assert spread(less) < spread(normal) < spread(more)
+    # The unrounded path used for saturation agrees with the fast one.
+    nearly_off = render(image, Adjust(saturation=1e-9), levels)
+    assert np.abs(nearly_off.astype(int) - normal).max() <= 1
+
+
+def test_warmth_and_tint_colour_the_midtones_only():
+    grey = render(negative(), Adjust())[10].astype(int)
+    warm = render(negative(), Adjust(warmth=0.5))[10].astype(int)
+    magenta = render(negative(), Adjust(tint=0.5))[10].astype(int)
+    mid = slice(150, 250)
+    assert np.all(warm[mid, 0] > grey[mid, 0]) and np.all(warm[mid, 2] < grey[mid, 2])
+    assert np.all(magenta[mid, 1] < magenta[mid, 0]) and np.all(magenta[mid, 1] < magenta[mid, 2])
+    for out in (warm, magenta):  # black stays black and white stays white
+        assert out[:2].max() <= 2 and out[-2:].min() >= 253
+    # The overall brightness hardly changes.
+    assert abs(warm.mean() - grey.mean()) < 3 and abs(magenta.mean() - grey.mean()) < 3
+
+
+def test_black_and_white_film_ignores_the_colour_controls():
+    plain = render(negative(), Adjust("bw-negative"))
+    coloured = render(negative(), Adjust("bw-negative", saturation=0.8, warmth=-0.6, tint=0.4))
+    assert np.array_equal(plain, coloured)
+
+
 def test_levels_are_measured_inside_the_crop():
     whole = render(negative(), Adjust())
     left_half = render(negative(), Adjust(), stats_crop=(0.0, 0.0, 0.5, 1.0))

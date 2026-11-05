@@ -7,7 +7,7 @@ const el = {
   crop: $('crop'), cropLabel: $('crop-label'),
   alert: $('alert'), alertText: $('alert-text'), alertClose: $('alert-close'),
   jobbar: $('jobbar'), bar: $('bar'), jobText: $('job-text'), jobTime: $('job-time'), cancel: $('cancel'),
-  film: $('film'), brightness: $('brightness'), brightnessOut: $('brightness-out'),
+  film: $('film'), adjustReset: $('adjust-reset'), adjustHint: $('adjust-hint'),
   rotate: $('rotate'), mirror: $('mirror'), cropInfo: $('crop-info'), cropReset: $('crop-reset'),
   resolution: $('resolution'), sizeHint: $('size-hint'), roll: $('roll'), frameNo: $('frame-no'),
   saveJpeg: $('save-jpeg'), saveTiff: $('save-tiff'),
@@ -18,8 +18,13 @@ const el = {
 const FILMS = ['color-negative', 'slide', 'bw-negative'];
 const FALLBACK_CAPS = { resolutions: [600, 1200, 2400, 3600, 7200], width_mm: 36.33, height_mm: 25 };
 const STORAGE_KEY = 'sprocket.settings.v1';
+// The Adjust sliders, -100 to 100. The last three do nothing for black & white film.
+const SLIDERS = ['brightness', 'contrast', 'saturation', 'warmth', 'tint'];
+const COLOUR_SLIDERS = ['saturation', 'warmth', 'tint'];
+const sliders = Object.fromEntries(SLIDERS.map((name) => [name, { input: $(name), out: $(`${name}-out`) }]));
 const DEFAULTS = {
-  film: 'color-negative', brightness: 0, rotate: 0, mirror: false, crop: null,
+  film: 'color-negative', brightness: 0, contrast: 0, saturation: 0, warmth: 0, tint: 0,
+  rotate: 0, mirror: false, crop: null,
   resolution: 3600, roll: 'roll-01', frame: 1, saveJpeg: true, saveTiff: true,
 };
 
@@ -42,6 +47,10 @@ function loadSettings() {
   } catch { /* storage unavailable or corrupt */ }
   const s = { ...DEFAULTS, ...saved };
   if (!FILMS.includes(s.film)) s.film = DEFAULTS.film;
+  for (const name of SLIDERS) {
+    if (!Number.isFinite(s[name])) s[name] = 0;
+    s[name] = clamp(Math.round(s[name]), -100, 100);
+  }
   if (![0, 90, 180, 270].includes(s.rotate)) s.rotate = 0;
   if (!isValidCrop(s.crop)) s.crop = null;
   return s;
@@ -172,8 +181,7 @@ async function renderPreview() {
   if (!shownPreview) return;
   const id = ++previewRequest;
   const params = new URLSearchParams({
-    film: settings.film, brightness: settings.brightness, rotate: settings.rotate,
-    mirror: settings.mirror, v: shownPreview,
+    ...adjustments(), rotate: settings.rotate, mirror: settings.mirror, v: shownPreview,
   });
   if (settings.crop) {
     params.set('crop', ['x0', 'y0', 'x1', 'y1'].map((k) => settings.crop[k].toFixed(4)).join(','));
@@ -338,12 +346,39 @@ function renderSizeHint() {
 
 function renderFilm() {
   for (const b of el.film.querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.value === settings.film));
+  renderSliders();
+}
+
+// Film type and slider values, as the server expects them.
+function adjustments() {
+  return { film: settings.film, ...Object.fromEntries(SLIDERS.map((name) => [name, settings[name]])) };
+}
+
+const signed = (v) => (v > 0 ? `+${v}` : String(v));
+
+function renderSliders() {
+  const mono = settings.film === 'bw-negative';
+  for (const name of SLIDERS) {
+    const { input, out } = sliders[name];
+    input.value = settings[name];
+    out.value = signed(settings[name]);
+    input.disabled = mono && COLOUR_SLIDERS.includes(name);
+  }
+  el.adjustReset.hidden = SLIDERS.every((name) => settings[name] === 0);
+  el.adjustHint.textContent = mono
+    ? 'Saturation, Warmth and Tint are for colour film.'
+    : 'Double-click a slider to set it back to 0.';
+}
+
+function setSliders(values) {
+  Object.assign(settings, values);
+  saveSettings();
+  renderSliders();
+  schedulePreview();
 }
 
 function renderControls() {
   renderFilm();
-  el.brightness.value = settings.brightness;
-  el.brightnessOut.value = settings.brightness;
   el.mirror.setAttribute('aria-pressed', String(settings.mirror));
   el.roll.value = settings.roll;
   el.frameNo.value = settings.frame;
@@ -362,16 +397,12 @@ function bindControls() {
       renderPreview();
     });
   }
-  el.brightness.addEventListener('input', () => {
-    settings.brightness = Number(el.brightness.value);
-    el.brightnessOut.value = settings.brightness;
-    saveSettings();
-    schedulePreview();
-  });
-  el.brightness.addEventListener('dblclick', () => {
-    el.brightness.value = 0;
-    el.brightness.dispatchEvent(new Event('input'));
-  });
+  for (const name of SLIDERS) {
+    const { input } = sliders[name];
+    input.addEventListener('input', () => setSliders({ [name]: Number(input.value) }));
+    input.addEventListener('dblclick', () => setSliders({ [name]: 0 }));
+  }
+  el.adjustReset.addEventListener('click', () => setSliders(Object.fromEntries(SLIDERS.map((name) => [name, 0]))));
   el.rotate.addEventListener('click', () => {
     settings.rotate = (settings.rotate + 90) % 360;
     saveSettings();
@@ -448,9 +479,8 @@ async function startJob(kind) {
   el.btnPreview.disabled = el.btnScan.disabled = true;
   try {
     const body = kind === 'scan' ? JSON.stringify({
-      film: settings.film,
+      ...adjustments(),
       resolution: Number(settings.resolution),
-      brightness: settings.brightness,
       rotate: settings.rotate,
       mirror: settings.mirror,
       crop: settings.crop,

@@ -3,7 +3,7 @@
 import io
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass
 from pathlib import Path
 
 import numpy as np
@@ -19,14 +19,32 @@ CLIP_PERCENT = 0.1
 # Levels are measured on at most this many pixels.
 STATS_SAMPLES = 1_000_000
 # Big images are converted a strip of about this many pixels at a time, which keeps the
-# memory needed on top of the raw scan and the finished picture small.
-STRIP_PIXELS = 1 << 20
+# memory needed on top of the raw scan and the finished picture small (and the
+# saturation step fast, as each strip fits in the CPU's cache).
+STRIP_PIXELS = 1 << 18
+# How strongly Warmth and Tint shift a channel's midtones at the ends of their sliders,
+# in the same units as Brightness.
+COLOUR_RANGE = 1.0
+# Rec. 601 luma weights, the ones Pillow's ImageEnhance.Color uses.
+LUMA = np.array([0.299, 0.587, 0.114], dtype=np.float32)
 
 
 @dataclass(frozen=True)
 class Adjust:
+    """How a raw scan becomes a picture.
+
+    The sliders run from -1 to +1; at 0 they leave the automatic conversion alone.
+    Brightness, Warmth and Tint bend the midtones and keep black and white where they
+    are, so they never clip.
+    """
+
     film: str = "color-negative"
-    brightness: float = 0.0  # -1 (darker) to +1 (brighter)
+    _: KW_ONLY
+    brightness: float = 0.0  # darker .. brighter
+    contrast: float = 0.0  # flatter .. punchier: an S-curve through mid grey
+    saturation: float = 0.0  # grey .. twice as colourful
+    warmth: float = 0.0  # bluer .. more orange
+    tint: float = 0.0  # greener .. more magenta
     rotate: int = 0  # clockwise degrees: 0, 90, 180 or 270
     mirror: bool = False
 
@@ -100,17 +118,26 @@ def render(
     """
     if levels is None:
         levels = measure_levels(image, adjust.film, stats_crop, margin)
-    luts = [np.rint(curve * 255).astype(np.uint8) for curve in _curves(adjust, levels)]
+    curves = _curves(adjust, levels)
     height, width = image.shape[:2]
-    mono = adjust.film == "bw-negative"
-    out = np.empty((height, width) if mono else (height, width, 3), dtype=np.uint8)
-    for rows in _strips(height, width):
-        strip = image[rows]
-        if mono:
-            out[rows] = luts[0][_mono(strip)]
-        else:
+    if adjust.film == "bw-negative":
+        lut = np.rint(curves[0] * 255).astype(np.uint8)
+        out = np.empty((height, width), dtype=np.uint8)
+        for rows in _strips(height, width):
+            out[rows] = lut[_mono(image[rows])]
+    elif adjust.saturation == 0:
+        luts = [np.rint(curve * 255).astype(np.uint8) for curve in curves]
+        out = np.empty((height, width, 3), dtype=np.uint8)
+        for rows in _strips(height, width):
             for c in range(3):
-                out[rows, :, c] = luts[c][strip[..., c]]
+                out[rows, :, c] = luts[c][image[rows, :, c]]
+    else:
+        # Saturation mixes the channels, so it works on unrounded values.
+        luts = [(curve * 255).astype(np.float32) for curve in curves]
+        out = np.empty((height, width, 3), dtype=np.uint8)
+        for rows in _strips(height, width):
+            rgb = np.stack([luts[c][image[rows, :, c]] for c in range(3)], axis=-1)
+            out[rows] = _saturate(rgb, 1.0 + adjust.saturation)
     return orient(out, adjust.rotate, adjust.mirror)
 
 
@@ -140,15 +167,45 @@ def _mono(image: np.ndarray) -> np.ndarray:
 
 def _curves(adjust: Adjust, levels: Levels) -> list[np.ndarray]:
     """One curve per output channel, from raw value (0-65535) to output (0-1)."""
-    exponent = 2.0 ** -adjust.brightness
     if adjust.film in ("color-negative", "bw-negative"):
-        channels = 1 if adjust.film == "bw-negative" else 3
-        return [
-            _negative_curve(levels.low[c], levels.high[c]) ** (NEGATIVE_GAMMA * exponent) for c in range(channels)
-        ]
-    if adjust.film == "slide":
-        return [_slide_curve(levels.low[c], levels.high[c]) ** exponent for c in range(3)]
-    raise ValueError(f"unknown film type {adjust.film!r}")
+        base, gamma = _negative_curve, NEGATIVE_GAMMA
+    elif adjust.film == "slide":
+        base, gamma = _slide_curve, 1.0
+    else:
+        raise ValueError(f"unknown film type {adjust.film!r}")
+    shifts = (0.0,) if adjust.film == "bw-negative" else _colour_shifts(adjust.warmth, adjust.tint)
+    return [
+        _contrast(base(levels.low[c], levels.high[c]) ** (gamma * 2.0 ** -(adjust.brightness + shift)), adjust.contrast)
+        for c, shift in enumerate(shifts)
+    ]
+
+
+def _colour_shifts(warmth: float, tint: float) -> tuple[float, float, float]:
+    """Brightness shifts for the red, green and blue midtones. They add up to zero, so
+    the colour changes but the picture gets no brighter or darker overall."""
+    w = warmth * COLOUR_RANGE / 2
+    t = tint * COLOUR_RANGE / 3
+    return (w + t, -2 * t, t - w)
+
+
+def _contrast(curve: np.ndarray, amount: float) -> np.ndarray:
+    """An S-curve through mid grey, steeper there for amount > 0 and flatter for < 0.
+    Black and white stay where they are."""
+    if amount == 0:
+        return curve
+    k = 2.0**amount
+    rise = curve**k
+    return rise / (rise + (1.0 - curve) ** k)
+
+
+def _saturate(rgb: np.ndarray, factor: float) -> np.ndarray:
+    """Scale the colourfulness of float RGB (0-255) in place; returns it as 8-bit."""
+    luma = (rgb @ LUMA)[..., None]
+    rgb -= luma
+    rgb *= factor
+    rgb += luma
+    np.clip(rgb, 0, 255, out=rgb)
+    return np.rint(rgb, out=rgb).astype(np.uint8)
 
 
 def _negative_curve(low: float, high: float) -> np.ndarray:
