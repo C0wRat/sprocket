@@ -1,0 +1,327 @@
+/* Sprocket: a dark, neutral UI so the colours of the film are judged fairly. */
+
+:root {
+  color-scheme: dark;
+  --bg: #151515;
+  --bg-stage: #0c0c0c;
+  --panel: #1b1b1b;
+  --raised: #252525;
+  --raised-hover: #2f2f2f;
+  --field: #121212;
+  --line: #2d2d2d;
+  --line-strong: #3b3b3b;
+  --text: #ececec;
+  --muted: #a3a3a3;
+  --faint: #737373;
+  --accent: #f2a541;
+  --accent-hover: #f7b964;
+  --accent-ink: #231504;
+  --ok: #4cc38a;
+  --err: #f07a7a;
+  --err-bg: #3a1e1e;
+  --err-line: #6e3333;
+  --radius: 8px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* --- Top bar ------------------------------------------------------------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 18px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 650; }
+.brand .logo { width: 22px; height: 22px; }
+
+.status { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 13px; }
+.status #status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.status[data-tone="ok"] .dot { background: var(--ok); }
+.status[data-tone="busy"] .dot { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+.status[data-tone="err"] { color: var(--err); }
+.status[data-tone="err"] .dot { background: var(--err); }
+@keyframes pulse { 50% { opacity: .3; } }
+
+/* --- Layout -------------------------------------------------------------- */
+
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "work panel" "gallery panel";
+}
+.workspace { grid-area: work; position: relative; display: flex; min-height: 0; }
+.panel {
+  grid-area: panel;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 18px;
+  overflow-y: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+}
+.gallery { grid-area: gallery; min-width: 0; padding: 12px 18px 14px; border-top: 1px solid var(--line); }
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* --- Stage: preview and crop --------------------------------------------- */
+
+.stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  overflow: hidden;
+  background: var(--bg-stage);
+}
+.frame {
+  position: relative;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 0 0 1px #000, 0 12px 40px rgba(0, 0, 0, .6);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.frame img { display: block; width: 100%; height: 100%; pointer-events: none; }
+.crop {
+  position: absolute;
+  border: 1.5px solid var(--accent);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .55);
+  cursor: move;
+}
+.crop-label {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, .65);
+  color: #fff;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.empty { max-width: 380px; text-align: center; color: var(--muted); }
+.empty svg { width: 180px; margin-bottom: 18px; }
+.empty-title { margin: 0 0 6px; color: var(--text); font-size: 16px; font-weight: 600; }
+.empty-text { margin: 0; }
+
+/* --- Job progress and errors (float over the stage) ------------------------ */
+
+.jobbar, .alert, .toast {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .5);
+}
+.jobbar {
+  bottom: 18px;
+  width: min(540px, calc(100% - 32px));
+  padding: 12px 14px;
+  background: rgba(30, 30, 30, .94);
+  border: 1px solid var(--line-strong);
+  backdrop-filter: blur(8px);
+}
+.progress { height: 4px; overflow: hidden; border-radius: 2px; background: var(--raised); }
+.bar { width: 0; height: 100%; background: var(--accent); transition: width .3s ease; }
+.bar.indeterminate { width: 30%; animation: sweep 1.4s ease-in-out infinite; }
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.jobline { display: flex; align-items: center; gap: 12px; margin-top: 10px; font-size: 13px; }
+.job-text { flex: 1; min-width: 0; }
+.job-time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.alert {
+  top: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: min(560px, calc(100% - 32px));
+  padding: 12px 14px;
+  background: var(--err-bg);
+  border: 1px solid var(--err-line);
+  color: #ffdede;
+}
+.alert span { flex: 1; }
+.icon-btn {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 20px;
+  line-height: 1;
+  opacity: .8;
+  cursor: pointer;
+}
+.icon-btn:hover { opacity: 1; }
+
+/* --- Controls ------------------------------------------------------------ */
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 3px;
+  background: var(--field);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+.segmented button {
+  padding: 7px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.segmented button:hover { color: var(--text); }
+.segmented button[aria-checked="true"] { background: var(--raised-hover); color: var(--text); font-weight: 600; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.btn:hover:not(:disabled) { background: var(--raised-hover); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn.small { padding: 5px 10px; font-size: 12px; }
+.btn.toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.btn kbd {
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font: 11px/1.3 var(--font);
+  opacity: .55;
+}
+.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+
+.range { display: grid; grid-template-columns: auto 1fr 34px; align-items: center; gap: 10px; color: var(--muted); }
+.range input { width: 100%; accent-color: var(--accent); }
+.range output { color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+
+.crop-row { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+.link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+.link:hover { text-decoration: underline; }
+
+.field { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; }
+.field input, .field select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.field-row { display: flex; gap: 10px; margin-top: 16px; }
+.grow { flex: 1; min-width: 0; }
+.frame-field { width: 84px; flex: none; }
+.check { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; cursor: pointer; }
+.check input { accent-color: var(--accent); }
+.hint { margin: 6px 0 0; color: var(--faint); font-size: 12px; }
+.check .hint { margin: 0; }
+
+.actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: auto; }
+.actions .btn { padding: 12px 14px; font-size: 15px; }
+.output { margin-top: -12px; overflow-wrap: anywhere; }
+
+/* --- Recent scans ---------------------------------------------------------- */
+
+.scans { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.scan { flex: 0 0 auto; width: 168px; margin: 0; }
+.scan .thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 112px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-stage);
+  color: var(--faint);
+  text-decoration: none;
+}
+.scan .thumb img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.scan .thumb:hover { border-color: var(--line-strong); }
+.scan figcaption { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; font-size: 12px; }
+.scan-name { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.scan-files { display: flex; flex: none; gap: 8px; }
+.scan-files a { color: var(--accent); text-decoration: none; }
+.scan-files a:hover { text-decoration: underline; }
+
+.toast {
+  bottom: 18px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 10px 14px;
+  border: 1px solid var(--line-strong);
+  background: rgba(38, 38, 38, .96);
+  font-size: 13px;
+}
+
+/* --- Narrow screens: stack everything ------------------------------------- */
+
+@media (max-width: 860px) {
+  body { height: auto; min-height: 100dvh; }
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    grid-template-areas: "work" "panel" "gallery";
+  }
+  .workspace { height: 56vh; min-height: 280px; }
+  .stage { padding: 16px; }
+  .panel { overflow: visible; border-left: 0; border-top: 1px solid var(--line); padding: 16px; }
+  .topbar, .gallery { padding-left: 16px; padding-right: 16px; }
+  .actions { margin-top: 0; }
+  .btn kbd { display: none; }
+}
