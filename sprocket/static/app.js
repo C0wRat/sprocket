@@ -9,7 +9,7 @@ const el = {
   alert: $('alert'), alertText: $('alert-text'), alertClose: $('alert-close'),
   jobbar: $('jobbar'), bar: $('bar'), jobText: $('job-text'), jobTime: $('job-time'), cancel: $('cancel'),
   film: $('film'), adjustReset: $('adjust-reset'), adjustHint: $('adjust-hint'),
-  lock: $('lock'), lockLabel: $('lock-label'), lockHint: $('lock-hint'),
+  lock: $('lock'), lockHint: $('lock-hint'),
   histogramBox: $('histogram-box'), histogram: $('histogram'), clipping: $('clipping'),
   rotate: $('rotate'), mirror: $('mirror'), cropInfo: $('crop-info'), cropReset: $('crop-reset'),
   resolution: $('resolution'), sizeHint: $('size-hint'), roll: $('roll'), frameNo: $('frame-no'),
@@ -432,45 +432,54 @@ function setSliders(values) {
   schedulePreview();
 }
 
+let locking = false; // a lock request is on its way
+
+// The button is pressed while a lock applies. A lock made for another film type is
+// kept, but isn't used, and locking again replaces it.
 function renderLock() {
   const lock = settings.lock;
   const active = activeLock();
-  el.lock.setAttribute('aria-pressed', String(Boolean(lock)));
-  el.lockLabel.textContent = lock ? 'Colours locked' : 'Lock colours';
-  el.lock.title = lock ? 'Unlock: measure the colours of each frame again' : 'Use the colours of this frame for the rest of the roll';
-  el.lock.disabled = !lock && !shownPreview; // locking needs a preview; unlocking doesn't
+  el.lock.setAttribute('aria-pressed', String(Boolean(active)));
+  el.lock.title = active ? 'Unlock: measure the colours of each frame again' : 'Use the colours of this frame for the rest of the roll';
+  el.lock.disabled = locking || (!active && !shownPreview); // locking needs a preview; unlocking doesn't
   let hint;
-  if (!lock) {
-    hint = shownPreview
-      ? 'Use this frame’s colours for the rest of the roll, so every frame matches.'
-      : 'Preview a frame with good colours, then lock them for the whole roll.';
-  } else if (!active) {
-    hint = `Not in use: the lock is for ${FILM_NAMES[lock.film]} film.`;
-  } else if (lock.roll !== settings.roll) {
+  if (active && lock.roll !== settings.roll) {
     hint = `Locked on roll “${lock.roll}”. Unlock if this is a different film.`;
-  } else {
+  } else if (active) {
     hint = 'Every frame gets the colours of the frame you locked on. The sliders still work.';
+  } else if (lock) {
+    hint = `A lock for ${FILM_NAMES[lock.film]} film is kept but not used here. Locking replaces it.`;
+  } else if (!shownPreview) {
+    hint = 'Preview a frame with good colours, then lock them for the whole roll.';
+  } else if (!settings.crop) {
+    hint = 'Crop to the picture first, so the holder doesn’t count, then lock its colours for the rest of the roll.';
+  } else {
+    hint = 'Use this frame’s colours for the rest of the roll, so every frame matches.';
   }
   el.lockHint.textContent = hint;
   el.lockHint.classList.toggle('lock-warning', Boolean(lock) && (!active || lock.roll !== settings.roll));
 }
 
 async function toggleLock() {
-  if (settings.lock) {
+  if (locking) return;
+  if (activeLock()) {
     settings.lock = null;
   } else {
     // Remember what was measured, in case the film type or roll changes while waiting.
     const { film, roll } = settings;
     const params = new URLSearchParams({ film, preview: shownPreview });
     if (settings.crop) params.set('crop', cropParam(settings.crop));
-    el.lock.disabled = true;
+    locking = true;
+    renderLock();
     try {
       const { low, high } = await api(`/api/levels?${params}`);
       settings.lock = { film, roll, low, high };
     } catch (err) {
       showAlert(err.message);
-      renderLock();
       return;
+    } finally {
+      locking = false;
+      renderLock();
     }
   }
   saveSettings();
