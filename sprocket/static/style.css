@@ -247,6 +247,18 @@ h2 {
 .group-head { display: flex; align-items: baseline; justify-content: space-between; }
 .group-head .link { font-size: 12px; }
 
+.histogram { margin: 0 0 14px; }
+.histogram canvas {
+  display: block;
+  width: 100%;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+}
+.histogram figcaption { font-variant-numeric: tabular-nums; }
+.clip-warn { color: var(--accent); }
+
 .range { display: grid; grid-template-columns: 74px 1fr 34px; align-items: center; gap: 10px; color: var(--muted); }
 .range + .range { margin-top: 6px; }
 .range output { color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }

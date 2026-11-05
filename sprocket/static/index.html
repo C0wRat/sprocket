@@ -93,6 +93,10 @@
           <h2>Adjust</h2>
           <button type="button" class="link" id="adjust-reset" hidden>Reset all</button>
         </div>
+        <figure class="histogram" id="histogram-box" hidden>
+          <canvas id="histogram" title="Histogram of the picture inside the crop: shadows on the left, highlights on the right"></canvas>
+          <figcaption class="hint" id="clipping" title="Pixels with a colour channel at pure black or pure white"></figcaption>
+        </figure>
         <label class="range">
           <span>Brightness</span>
           <input type="range" id="brightness" min="-100" max="100" step="1" value="0" title="Double-click to reset">

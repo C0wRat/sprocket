@@ -1,4 +1,5 @@
 import { clamp, mapRect, toDisplay, toScanner } from './geometry.js';
+import { computeHistogram, drawHistogram } from './histogram.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -9,6 +10,7 @@ const el = {
   jobbar: $('jobbar'), bar: $('bar'), jobText: $('job-text'), jobTime: $('job-time'), cancel: $('cancel'),
   film: $('film'), adjustReset: $('adjust-reset'), adjustHint: $('adjust-hint'),
   lock: $('lock'), lockLabel: $('lock-label'), lockHint: $('lock-hint'),
+  histogramBox: $('histogram-box'), histogram: $('histogram'), clipping: $('clipping'),
   rotate: $('rotate'), mirror: $('mirror'), cropInfo: $('crop-info'), cropReset: $('crop-reset'),
   resolution: $('resolution'), sizeHint: $('size-hint'), roll: $('roll'), frameNo: $('frame-no'),
   saveJpeg: $('save-jpeg'), saveTiff: $('save-tiff'),
@@ -222,9 +224,42 @@ async function renderPreview() {
     el.frame.hidden = false;
     fitFrame();
     drawCrop();
+    renderHistogram(img);
   } catch (err) {
     showAlert(err.message);
   }
+}
+
+const pixelReader = document.createElement('canvas');
+
+// Histogram and clipping of the part of the preview that will be saved.
+function renderHistogram(img) {
+  const { naturalWidth: w, naturalHeight: h } = img;
+  const r = displayCrop() ?? { x0: 0, y0: 0, x1: 1, y1: 1 };
+  const x = Math.floor(r.x0 * w);
+  const y = Math.floor(r.y0 * h);
+  const cw = Math.max(1, Math.min(w - x, Math.ceil(r.x1 * w) - x));
+  const ch = Math.max(1, Math.min(h - y, Math.ceil(r.y1 * h) - y));
+  pixelReader.width = cw;
+  pixelReader.height = ch;
+  const ctx = pixelReader.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, x, y, cw, ch, 0, 0, cw, ch);
+  const hist = computeHistogram(ctx.getImageData(0, 0, cw, ch).data);
+  el.histogramBox.hidden = false;
+  drawHistogram(el.histogram, hist, settings.film === 'bw-negative');
+  const amount = (label, fraction) => {
+    const span = document.createElement('span');
+    span.textContent = `${label} ${percentText(fraction)}`;
+    span.classList.toggle('clip-warn', fraction > 0.01);
+    return span;
+  };
+  el.clipping.replaceChildren('Clipped: ', amount('black', hist.black), ' · ', amount('white', hist.white));
+}
+
+function percentText(fraction) {
+  const p = fraction * 100;
+  if (p > 0 && p < 0.1) return '<0.1%';
+  return `${p < 10 ? p.toFixed(1) : Math.round(p)}%`;
 }
 
 const schedulePreview = debounce(renderPreview, 120);
