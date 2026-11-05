@@ -3,14 +3,21 @@
 import io
 import math
 import os
+import unicodedata
 from dataclasses import KW_ONLY, dataclass
+from datetime import datetime
+from functools import cache
 from pathlib import Path
 
 import numpy as np
 import tifffile
-from PIL import Image, ImageFilter
+from PIL import ExifTags, Image, ImageCms, ImageFilter
+
+from . import __version__
 
 FILM_TYPES = ("color-negative", "slide", "bw-negative")
+FILM_NAMES = {"color-negative": "colour negative", "slide": "slide", "bw-negative": "black & white negative"}
+SOFTWARE = f"Sprocket {__version__}"
 # Unsharp mask strength (percent) for each Sharpen setting.
 SHARPEN_PERCENT = {"low": 60, "medium": 110, "high": 180}
 # Differences smaller than this (out of 255) are left alone, so that film grain and noise
@@ -55,6 +62,16 @@ class Adjust:
     tint: float = 0.0  # greener .. more magenta
     rotate: int = 0  # clockwise degrees: 0, 90, 180 or 270
     mirror: bool = False
+
+
+@dataclass(frozen=True)
+class ScanInfo:
+    """What the saved files record about a scan in their metadata."""
+
+    scanned: datetime
+    make: str = ""  # of the scanner, e.g. "Plustek"; empty if not known
+    model: str = ""  # e.g. "Plustek OpticFilm 8100"
+    description: str = ""  # e.g. "Trip 1, frame 3, colour negative"
 
 
 @dataclass(frozen=True)
@@ -262,28 +279,69 @@ def encode_jpeg(image: np.ndarray, quality: int = 88) -> bytes:
     return buf.getvalue()
 
 
-def save_jpeg(path: Path, image: np.ndarray, dpi: int, quality: int = 95) -> None:
+def save_jpeg(path: Path, image: np.ndarray, dpi: int, quality: int = 95, info: ScanInfo | None = None) -> None:
+    """Save the finished picture. Colour JPEGs are tagged as sRGB, so colour-managed
+    programs show them as intended, and `info` goes into the EXIF data."""
     tmp = path.with_name(path.name + ".part")
-    Image.fromarray(np.ascontiguousarray(image)).save(
-        tmp, format="JPEG", quality=quality, subsampling=0, dpi=(dpi, dpi)
-    )
+    picture = Image.fromarray(np.ascontiguousarray(image))
+    extra = {}
+    if picture.mode == "RGB":
+        extra["icc_profile"] = srgb_profile()
+    if info is not None:
+        extra["exif"] = _exif(info, dpi)
+    picture.save(tmp, format="JPEG", quality=quality, subsampling=0, dpi=(dpi, dpi), **extra)
     os.replace(tmp, path)
 
 
-def save_tiff(path: Path, image: np.ndarray, dpi: int) -> None:
+def save_tiff(path: Path, image: np.ndarray, dpi: int, info: ScanInfo | None = None) -> None:
     """Save a 16-bit image as an uncompressed TIFF, which every editor can open."""
     tmp = path.with_name(path.name + ".part")
     photometric = "rgb" if image.ndim == 3 else "minisblack"
+    tags = []
+    if info is not None and info.make:
+        tags += [(271, "s", 0, _ascii(info.make), True), (272, "s", 0, _ascii(info.model), True)]
     tifffile.imwrite(
         tmp,
         np.ascontiguousarray(image),
         photometric=photometric,
         resolution=(dpi, dpi),
         resolutionunit="INCH",
-        software="Sprocket",
+        software=SOFTWARE,
+        datetime=info.scanned if info is not None else None,
+        description=_ascii(info.description) if info is not None and info.description else None,
+        extratags=tags,
         metadata=None,
     )
     os.replace(tmp, path)
+
+
+@cache
+def srgb_profile() -> bytes:
+    """An sRGB ICC profile, from the colour engine built into Pillow."""
+    return ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+
+
+def _ascii(text: str) -> str:
+    """EXIF and TIFF text is 7-bit ASCII: "Été à Paris" -> "Ete a Paris"."""
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+
+
+def _exif(info: ScanInfo, dpi: int) -> Image.Exif:
+    exif = Image.Exif()
+    stamp = info.scanned.strftime("%Y:%m:%d %H:%M:%S")
+    exif[ExifTags.Base.Software] = SOFTWARE
+    exif[ExifTags.Base.DateTime] = stamp
+    exif[ExifTags.Base.XResolution] = dpi
+    exif[ExifTags.Base.YResolution] = dpi
+    exif[ExifTags.Base.ResolutionUnit] = 2  # inches
+    if info.make:
+        exif[ExifTags.Base.Make] = _ascii(info.make)
+        exif[ExifTags.Base.Model] = _ascii(info.model)
+    if info.description:
+        exif[ExifTags.Base.ImageDescription] = _ascii(info.description)
+    # When the picture was digitised; when it was taken isn't known.
+    exif.get_ifd(ExifTags.IFD.Exif)[ExifTags.Base.DateTimeDigitized] = stamp
+    return exif
 
 
 def save_thumbnail(path: Path, image: np.ndarray, size: int = 480) -> None:

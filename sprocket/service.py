@@ -9,6 +9,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -357,13 +358,20 @@ class ScannerService:
         base = library.unique_base(folder, f"{roll}-{req.frame:02d}")
         adjust = req.adjust
         levels = req.levels.to_imaging() if req.levels else None
+        device = self.device()
+        info = imaging.ScanInfo(
+            scanned=datetime.now(),
+            make=device.make if device else "",
+            model=device.model if device and device.make else "",
+            description=f"{roll}, frame {req.frame}, {imaging.FILM_NAMES[req.film]}",
+        )
         positive = imaging.render(image, adjust, levels, margin=0.02 if req.crop else 0.04)
         if req.save_jpeg:
             imaging.sharpen(positive, req.sharpen, req.resolution)
-            imaging.save_jpeg(folder / f"{base}.jpg", positive, req.resolution)
+            imaging.save_jpeg(folder / f"{base}.jpg", positive, req.resolution, info=info)
         if req.save_tiff:
             raw = imaging.orient(image, adjust.rotate, adjust.mirror)
-            imaging.save_tiff(folder / f"{base}{library.RAW_SUFFIX}", raw, req.resolution)
+            imaging.save_tiff(folder / f"{base}{library.RAW_SUFFIX}", raw, req.resolution, info=info)
         imaging.save_thumbnail(folder / library.THUMBS / f"{base}.jpg", positive)
         height, width = positive.shape[:2]
         log.info("Saved %s (%d x %d px at %d dpi)", folder / base, width, height, req.resolution)

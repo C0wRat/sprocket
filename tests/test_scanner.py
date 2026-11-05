@@ -88,4 +88,5 @@ def test_find_device(tmp_path):
     device = find_device(tmp_path)
     assert device.name == "genesys:libusb:001:010"
     assert device.model == "Plustek OpticFilm 8100"
+    assert device.make == "Plustek"
     assert find_device(tmp_path / "missing") is None

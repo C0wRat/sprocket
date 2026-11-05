@@ -51,7 +51,8 @@ CHUNK = 1 << 20
 @dataclass(frozen=True)
 class Device:
     name: str  # SANE device name, e.g. "genesys:libusb:001:010"
-    model: str
+    model: str  # e.g. "Plustek OpticFilm 8100"
+    make: str = ""  # e.g. "Plustek"; empty when not known
 
 
 @dataclass(frozen=True)
@@ -112,7 +113,7 @@ def find_device(sysfs: Path = SYSFS_USB) -> Device | None:
             dev = int((entry / "devnum").read_text())
         except (OSError, ValueError):
             continue
-        return Device(f"genesys:libusb:{bus:03d}:{dev:03d}", f"Plustek {OPTICFILM_MODELS[product]}")
+        return Device(f"genesys:libusb:{bus:03d}:{dev:03d}", f"Plustek {OPTICFILM_MODELS[product]}", "Plustek")
     return None
 
 

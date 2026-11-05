@@ -1,7 +1,10 @@
+import io
+from datetime import datetime
+
 import numpy as np
 import pytest
 import tifffile
-from PIL import Image, ImageFilter
+from PIL import ExifTags, Image, ImageCms, ImageFilter
 
 from sprocket import imaging
 from sprocket.imaging import Adjust, measure_levels, orient, render, save_jpeg, save_tiff
@@ -190,3 +193,42 @@ def test_save_tiff_and_jpeg(tmp_path):
         assert im.size == (400, 20)
         assert im.info["dpi"] == (3600, 3600)
     assert not list(tmp_path.glob("*.part"))
+
+
+def test_saved_files_say_what_they_are(tmp_path):
+    info = imaging.ScanInfo(
+        scanned=datetime(2026, 11, 5, 21, 30, 15),
+        make="Plustek",
+        model="Plustek OpticFilm 8100",
+        description="Été à Paris, frame 3, colour negative",
+    )
+    raw = negative()
+    save_jpeg(tmp_path / "scan.jpg", render(raw, Adjust()), 3600, info=info)
+    with Image.open(tmp_path / "scan.jpg") as im:
+        profile = ImageCms.ImageCmsProfile(io.BytesIO(im.info["icc_profile"]))
+        assert "sRGB" in ImageCms.getProfileDescription(profile)
+        exif = im.getexif()
+        assert exif[ExifTags.Base.Make] == "Plustek"
+        assert exif[ExifTags.Base.Model] == "Plustek OpticFilm 8100"
+        assert exif[ExifTags.Base.Software] == imaging.SOFTWARE
+        assert exif[ExifTags.Base.DateTime] == "2026:11:05 21:30:15"
+        assert exif[ExifTags.Base.ImageDescription] == "Ete a Paris, frame 3, colour negative"
+        assert exif[ExifTags.Base.XResolution] == 3600
+        assert exif.get_ifd(ExifTags.IFD.Exif)[ExifTags.Base.DateTimeDigitized] == "2026:11:05 21:30:15"
+
+    save_tiff(tmp_path / "scan_raw.tif", raw, 3600, info=info)
+    with tifffile.TiffFile(tmp_path / "scan_raw.tif") as tif:
+        tags = tif.pages[0].tags
+        assert np.array_equal(tif.asarray(), raw)
+        assert tags["Make"].value == "Plustek"
+        assert tags["Model"].value == "Plustek OpticFilm 8100"
+        assert tags["Software"].value == imaging.SOFTWARE
+        assert tags["DateTime"].value == "2026:11:05 21:30:15"
+        assert tags["ImageDescription"].value == "Ete a Paris, frame 3, colour negative"
+
+    # Black & white JPEGs have no sRGB profile (it is for colour), and without a known
+    # scanner there is no make or model.
+    save_jpeg(tmp_path / "bw.jpg", render(raw, Adjust("bw-negative")), 600, info=imaging.ScanInfo(datetime.now()))
+    with Image.open(tmp_path / "bw.jpg") as im:
+        assert im.mode == "L" and "icc_profile" not in im.info
+        assert ExifTags.Base.Make not in im.getexif()

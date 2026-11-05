@@ -3,7 +3,7 @@ import time
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import ExifTags, Image
 
 from sprocket.app import create_app
 from sprocket.service import ScannerService
@@ -75,6 +75,9 @@ def test_preview_then_scan(client, output):
     assert (folder / "Trip 1-03.jpg").is_file()
     assert (folder / "Trip 1-03_raw.tif").is_file()
     assert (folder / ".thumbs" / "Trip 1-03.jpg").is_file()
+    with Image.open(folder / "Trip 1-03.jpg") as im:
+        assert im.getexif()[ExifTags.Base.ImageDescription] == "Trip 1, frame 3, colour negative"
+        assert "icc_profile" in im.info
 
     [scan] = client.get("/api/scans").json()["scans"]
     assert scan["name"] == "Trip 1-03"
