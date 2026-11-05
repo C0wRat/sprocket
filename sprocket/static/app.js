@@ -585,7 +585,8 @@ function bindControls() {
 
   document.addEventListener('keydown', (event) => {
     if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
-    if (event.target.closest('input, select, textarea, [contenteditable]')) return;
+    // Typing in a field shouldn't scan, but after moving a slider or ticking a box it should.
+    if (event.target.closest('input:not([type=range], [type=checkbox]), select, textarea, [contenteditable]')) return;
     const key = event.key.toLowerCase();
     if (key === 'p') startJob('preview');
     else if (key === 's') startJob('scan');

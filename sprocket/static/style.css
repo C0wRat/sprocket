@@ -83,6 +83,7 @@ body {
   overflow-y: auto;
   background: var(--panel);
   border-left: 1px solid var(--line);
+  scroll-padding-bottom: 130px; /* keep focused controls clear of the dock */
 }
 .gallery { grid-area: gallery; min-width: 0; padding: 12px 18px 14px; border-top: 1px solid var(--line); }
 
@@ -386,5 +387,6 @@ h2 {
   .panel { overflow: visible; border-left: 0; border-top: 1px solid var(--line); padding: 16px; }
   .topbar, .gallery { padding-left: 16px; padding-right: 16px; }
   .dock { bottom: 0; margin: 0 -16px -16px; padding: 12px 16px; }
+  html { scroll-padding-bottom: 120px; }
   .btn kbd { display: none; }
 }
