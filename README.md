@@ -60,7 +60,8 @@ press **Lock colours** on a typical frame (see below).
 ```
 
 - The **JPEG** is the picture to share and print. Negatives are inverted and the
-  orange mask is removed. Levels are set automatically from what's inside the crop.
+  orange mask is removed. Levels are set automatically from what's inside the crop,
+  or taken from the locked frame when the colours are locked.
   **Sharpen the JPEG** (Low, Medium or High) gives it an unsharp mask that scales with
   the resolution and leaves grain-sized differences alone. It isn't shown in the
   preview, and at 7200 dpi it adds about 3 s to saving.
