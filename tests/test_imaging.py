@@ -107,8 +107,15 @@ def test_warmth_and_tint_colour_the_midtones_only():
     assert np.all(magenta[mid, 1] < magenta[mid, 0]) and np.all(magenta[mid, 1] < magenta[mid, 2])
     for out in (warm, magenta):  # black stays black and white stays white
         assert out[:2].max() <= 2 and out[-2:].min() >= 253
-    # The overall brightness hardly changes.
-    assert abs(warm.mean() - grey.mean()) < 3 and abs(magenta.mean() - grey.mean()) < 3
+
+
+@pytest.mark.parametrize("setting", ["warmth", "tint"])
+@pytest.mark.parametrize("amount", [-1.0, -0.5, 0.5, 1.0])
+def test_warmth_and_tint_keep_the_brightness(setting, amount):
+    def luma(adjust):
+        return (render(negative(), adjust)[10].astype(float) @ imaging.LUMA_WEIGHTS).mean()
+
+    assert abs(luma(Adjust(**{setting: amount})) - luma(Adjust())) < 1.5
 
 
 def test_black_and_white_film_ignores_the_colour_controls():

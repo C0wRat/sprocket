@@ -40,8 +40,10 @@ STRIP_PIXELS = 1 << 18
 # How strongly Warmth and Tint shift a channel's midtones at the ends of their sliders,
 # in the same units as Brightness.
 COLOUR_RANGE = 1.0
-# Rec. 601 luma weights, the ones Pillow's ImageEnhance.Color uses.
-LUMA = np.array([0.299, 0.587, 0.114], dtype=np.float32)
+# How much red, green and blue add to brightness: Rec. 601 luma weights, the ones
+# Pillow's ImageEnhance.Color uses.
+LUMA_WEIGHTS = (0.299, 0.587, 0.114)
+LUMA = np.array(LUMA_WEIGHTS, dtype=np.float32)
 
 
 @dataclass(frozen=True)
@@ -206,11 +208,16 @@ def _curves(adjust: Adjust, levels: Levels) -> list[np.ndarray]:
 
 
 def _colour_shifts(warmth: float, tint: float) -> tuple[float, float, float]:
-    """Brightness shifts for the red, green and blue midtones. They add up to zero, so
-    the colour changes but the picture gets no brighter or darker overall."""
-    w = warmth * COLOUR_RANGE / 2
-    t = tint * COLOUR_RANGE / 3
-    return (w + t, -2 * t, t - w)
+    """Brightness shifts for the red, green and blue midtones.
+
+    Warmth moves red against blue, and Tint red and blue against green, by `COLOUR_RANGE`
+    between them at the ends of the sliders. Each is split by how much the channels add
+    to brightness (luma), so the colour changes and the brightness hardly does.
+    """
+    r, g, b = LUMA_WEIGHTS
+    w = warmth * COLOUR_RANGE
+    t = tint * COLOUR_RANGE
+    return (w * b / (r + b) + t * g, -t * (r + b), -w * r / (r + b) + t * g)
 
 
 def _contrast(curve: np.ndarray, amount: float) -> np.ndarray:
