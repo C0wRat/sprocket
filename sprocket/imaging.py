@@ -18,6 +18,9 @@ NEGATIVE_GAMMA = 1.3
 CLIP_PERCENT = 0.1
 # Levels are measured on at most this many pixels.
 STATS_SAMPLES = 1_000_000
+# Big images are converted a strip of about this many pixels at a time, which keeps the
+# memory needed on top of the raw scan and the finished picture small.
+STRIP_PIXELS = 1 << 20
 
 
 @dataclass(frozen=True)
@@ -26,6 +29,20 @@ class Adjust:
     brightness: float = 0.0  # -1 (darker) to +1 (brighter)
     rotate: int = 0  # clockwise degrees: 0, 90, 180 or 270
     mirror: bool = False
+
+
+@dataclass(frozen=True)
+class Levels:
+    """The darkest and brightest raw values that count, per channel (R, G, B).
+
+    They set the conversion's end points. For a negative the brightest raw value is the
+    film base, which becomes black, and the darkest is the densest highlight, which
+    becomes white; a slide maps them the other way round. Each frame is measured on its
+    own unless levels are given.
+    """
+
+    low: tuple[float, float, float]
+    high: tuple[float, float, float]
 
 
 def orient(image: np.ndarray, rotate: int = 0, mirror: bool = False) -> np.ndarray:
@@ -39,34 +56,69 @@ def orient(image: np.ndarray, rotate: int = 0, mirror: bool = False) -> np.ndarr
     return np.rot90(image, k=-k) if k else image
 
 
+def measure_levels(
+    image: np.ndarray,
+    film: str,
+    crop: tuple[float, float, float, float] | None = None,
+    margin: float | None = None,
+) -> Levels:
+    """Measure a frame's levels, ignoring the brightest and darkest CLIP_PERCENT %.
+
+    Only the part inside `crop` (x0, y0, x1, y1 as fractions of the image; default: all
+    of it) counts, shrunk by `margin` on every side so the film holder's edges and the
+    clear gaps between frames don't skew the result.
+    """
+    if margin is None:
+        margin = 0.02 if crop else 0.04
+    sample = _sample(image, crop, margin)
+    clip = (CLIP_PERCENT, 100 - CLIP_PERCENT)
+    if film == "color-negative":
+        # Per channel: this is what removes the orange mask.
+        low, high = np.percentile(sample.reshape(-1, 3), clip, axis=0)
+    elif film == "bw-negative":
+        low, high = np.repeat(np.percentile(_mono(sample), clip), 3).reshape(2, 3)
+    elif film == "slide":
+        # Shared by all channels, which keeps the slide's own colour balance.
+        low, high = np.repeat(np.percentile(sample, clip), 3).reshape(2, 3)
+    else:
+        raise ValueError(f"unknown film type {film!r}")
+    return Levels(tuple(float(v) for v in low), tuple(float(v) for v in high))
+
+
 def render(
     image: np.ndarray,
     adjust: Adjust,
+    levels: Levels | None = None,
     *,
     stats_crop: tuple[float, float, float, float] | None = None,
     margin: float | None = None,
 ) -> np.ndarray:
     """Raw scan -> oriented 8-bit positive: (H, W, 3), or (H, W) for black & white film.
 
-    Levels are measured inside `stats_crop` (x0, y0, x1, y1 as fractions of the image;
-    default: all of it), shrunk by `margin` on every side so the film holder's edges
-    and the clear gaps between frames don't skew them.
+    Without `levels` they are measured on this image, inside `stats_crop` shrunk by
+    `margin` (see measure_levels()).
     """
-    if margin is None:
-        margin = 0.02 if stats_crop else 0.04
-    sample = _sample(image, stats_crop, margin)
-    exponent = 2.0 ** -adjust.brightness
-    if adjust.film == "color-negative":
-        out = np.empty(image.shape, dtype=np.uint8)
-        for c in range(3):
-            out[..., c] = _negative_lut(sample[..., c], NEGATIVE_GAMMA * exponent)[image[..., c]]
-    elif adjust.film == "bw-negative":
-        out = _negative_lut(_mono(sample), NEGATIVE_GAMMA * exponent)[_mono(image)]
-    elif adjust.film == "slide":
-        out = _slide_lut(sample, exponent)[image]
-    else:
-        raise ValueError(f"unknown film type {adjust.film!r}")
+    if levels is None:
+        levels = measure_levels(image, adjust.film, stats_crop, margin)
+    luts = [np.rint(curve * 255).astype(np.uint8) for curve in _curves(adjust, levels)]
+    height, width = image.shape[:2]
+    mono = adjust.film == "bw-negative"
+    out = np.empty((height, width) if mono else (height, width, 3), dtype=np.uint8)
+    for rows in _strips(height, width):
+        strip = image[rows]
+        if mono:
+            out[rows] = luts[0][_mono(strip)]
+        else:
+            for c in range(3):
+                out[rows, :, c] = luts[c][strip[..., c]]
     return orient(out, adjust.rotate, adjust.mirror)
+
+
+def _strips(height: int, width: int):
+    """Row slices covering an image a strip of about STRIP_PIXELS pixels at a time."""
+    rows = max(1, STRIP_PIXELS // max(width, 1))
+    for top in range(0, height, rows):
+        yield slice(top, min(top + rows, height))
 
 
 def _sample(image: np.ndarray, crop, margin: float) -> np.ndarray:
@@ -86,30 +138,33 @@ def _mono(image: np.ndarray) -> np.ndarray:
     return ((r + 2 * g + b) >> 2).astype(np.uint16)
 
 
-def _negative_lut(values: np.ndarray, gamma: float) -> np.ndarray:
-    """Lookup table that inverts a negative.
-
-    The inversion happens in log (density) space, between the clearest part of the
-    frame (film base -> black) and the densest (brightest highlight -> white). Done
-    per channel, this also removes the orange mask of colour negative film.
-    """
-    lo, hi = np.percentile(values, (CLIP_PERCENT, 100 - CLIP_PERCENT))
-    lo = max(float(lo), 1.0)
-    hi = max(float(hi), lo * 1.05)
-    v = np.arange(65536, dtype=np.float64)
-    v[0] = 1.0
-    positive = np.clip(np.log(hi / v) / np.log(hi / lo), 0.0, 1.0) ** gamma
-    return np.rint(positive * 255).astype(np.uint8)
+def _curves(adjust: Adjust, levels: Levels) -> list[np.ndarray]:
+    """One curve per output channel, from raw value (0-65535) to output (0-1)."""
+    exponent = 2.0 ** -adjust.brightness
+    if adjust.film in ("color-negative", "bw-negative"):
+        channels = 1 if adjust.film == "bw-negative" else 3
+        return [
+            _negative_curve(levels.low[c], levels.high[c]) ** (NEGATIVE_GAMMA * exponent) for c in range(channels)
+        ]
+    if adjust.film == "slide":
+        return [_slide_curve(levels.low[c], levels.high[c]) ** exponent for c in range(3)]
+    raise ValueError(f"unknown film type {adjust.film!r}")
 
 
-def _slide_lut(values: np.ndarray, gamma: float) -> np.ndarray:
-    """Lookup table for slides (positive film): black and white points shared by all
-    channels, which keeps the slide's own colour balance, then sRGB encoding."""
-    lo, hi = np.percentile(values, (CLIP_PERCENT, 100 - CLIP_PERCENT))
-    hi = max(float(hi), float(lo) + 1.0)
-    linear = np.clip((np.arange(65536, dtype=np.float64) - lo) / (hi - lo), 0.0, 1.0)
+def _negative_curve(low: float, high: float) -> np.ndarray:
+    """Invert a negative in log (density) space: `high` (the film base) -> 0, `low` -> 1."""
+    lo = max(low, 1.0)
+    hi = max(high, lo * 1.05)
+    v = np.maximum(np.arange(65536, dtype=np.float64), 1.0)
+    return np.clip(np.log(hi / v) / np.log(hi / lo), 0.0, 1.0)
+
+
+def _slide_curve(low: float, high: float) -> np.ndarray:
+    """Positive film: stretch `low`..`high` to 0..1, then sRGB encoding."""
+    hi = max(high, low + 1.0)
+    linear = np.clip((np.arange(65536, dtype=np.float64) - low) / (hi - low), 0.0, 1.0)
     encoded = np.where(linear <= 0.0031308, 12.92 * linear, 1.055 * linear ** (1 / 2.4) - 0.055)
-    return np.rint(np.clip(encoded, 0.0, 1.0) ** gamma * 255).astype(np.uint8)
+    return np.clip(encoded, 0.0, 1.0)
 
 
 def encode_jpeg(image: np.ndarray, quality: int = 88) -> bytes:

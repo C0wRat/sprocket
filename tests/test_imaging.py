@@ -3,7 +3,8 @@ import pytest
 import tifffile
 from PIL import Image
 
-from sprocket.imaging import Adjust, orient, render, save_jpeg, save_tiff
+from sprocket import imaging
+from sprocket.imaging import Adjust, measure_levels, orient, render, save_jpeg, save_tiff
 
 # Where a point at scanner coordinates (0.2, 0.1) lands on screen for each orientation.
 # tests/geometry.test.mjs checks static/geometry.js against the same table.
@@ -75,6 +76,27 @@ def test_levels_are_measured_inside_the_crop():
 
 def test_rotation_is_applied():
     assert render(negative(), Adjust(rotate=90)).shape == (400, 20, 3)
+
+
+@pytest.mark.parametrize("film", ["color-negative", "slide", "bw-negative"])
+def test_measured_levels_can_be_reused(film):
+    image = negative()
+    crop = (0.0, 0.0, 0.5, 1.0)
+    levels = measure_levels(image, film, crop)
+    assert all(lo < hi for lo, hi in zip(levels.low, levels.high))
+    expected = render(image, Adjust(film), stats_crop=crop)
+    assert np.array_equal(render(image, Adjust(film), levels), expected)
+    # Another frame converted with these levels keeps this frame's colours.
+    darker = (image // 2).astype(np.uint16)
+    assert not np.array_equal(render(darker, Adjust(film)), render(darker, Adjust(film), levels))
+
+
+@pytest.mark.parametrize("film", ["color-negative", "bw-negative"])
+def test_conversion_in_strips_matches_all_at_once(film, monkeypatch):
+    image = np.random.default_rng(0).integers(0, 65535, (37, 23, 3), dtype=np.uint16)
+    whole = render(image, Adjust(film))
+    monkeypatch.setattr(imaging, "STRIP_PIXELS", 23 * 5)  # strips of 5 rows, the last one shorter
+    assert np.array_equal(render(image, Adjust(film)), whole)
 
 
 def test_save_tiff_and_jpeg(tmp_path):
