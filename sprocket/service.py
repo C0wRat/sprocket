@@ -221,9 +221,14 @@ class ScannerService:
                 "preview_resolution": caps.preview_resolution,
             },
             "job": job.to_dict() if job else None,
-            "preview": {"id": f"{self._instance}-{self._preview_version}" if self._preview_version else None},
+            "preview": {"id": self.preview_id},
             "output_dir": _display_path(self.output),
         }
+
+    @property
+    def preview_id(self) -> str | None:
+        """Identifies the current preview: it changes with every new one, and on restart."""
+        return f"{self._instance}-{self._preview_version}" if self._preview_version else None
 
     def render_preview(
         self,

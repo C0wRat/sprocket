@@ -90,8 +90,11 @@ def test_colours_can_be_locked_to_a_frame(client, output):
     client.post("/api/preview")
     assert wait_for_job(client)["state"] == "done"
 
-    lock = client.get("/api/levels", params={"film": "color-negative", "crop": "0.1,0.1,0.9,0.9"}).json()
+    on_screen = client.get("/api/status").json()["preview"]["id"]
+    lock = client.get("/api/levels", params={"crop": "0.1,0.1,0.9,0.9", "preview": on_screen}).json()
     assert lock["film"] == "color-negative"
+    # A preview that has been replaced since can't be locked on.
+    assert client.get("/api/levels", params={"preview": on_screen + "-old"}).status_code == 409
     assert all(lo < hi for lo, hi in zip(lock["low"], lock["high"]))
     levels = ",".join(str(v) for v in lock["low"] + lock["high"])
     # The preview with the frame's own levels looks the same as measuring them again.

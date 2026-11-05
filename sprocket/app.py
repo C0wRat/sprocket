@@ -71,9 +71,16 @@ def create_app(service: ScannerService) -> FastAPI:
         return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
     @app.get("/api/levels")
-    def preview_levels(film: FilmType = "color-negative", crop: str | None = None) -> dict:
-        """The preview's levels, for locking a roll's colours to this frame's."""
-        levels = service.preview_levels(film, _parse_crop(crop))
+    def preview_levels(film: FilmType = "color-negative", crop: str | None = None, preview: str | None = None) -> dict:
+        """The preview's levels, for locking a roll's colours to this frame's.
+
+        `preview` is the id of the preview the user is looking at (from /api/status). If a
+        newer one has arrived since, its levels would be for a frame they haven't seen.
+        """
+        crop_box = _parse_crop(crop)
+        if preview is not None and preview != service.preview_id:
+            raise HTTPException(409, "A new preview has just arrived. Have a look at it, then lock again.")
+        levels = service.preview_levels(film, crop_box)
         if levels is None:
             raise HTTPException(404, "No preview yet. Press Preview first.")
         return {"film": film, "low": levels.low, "high": levels.high}

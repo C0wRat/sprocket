@@ -461,7 +461,7 @@ async function toggleLock() {
   } else {
     // Remember what was measured, in case the film type or roll changes while waiting.
     const { film, roll } = settings;
-    const params = new URLSearchParams({ film });
+    const params = new URLSearchParams({ film, preview: shownPreview });
     if (settings.crop) params.set('crop', cropParam(settings.crop));
     el.lock.disabled = true;
     try {
