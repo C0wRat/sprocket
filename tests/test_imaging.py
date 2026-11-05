@@ -245,6 +245,16 @@ def test_saved_files_say_what_they_are(tmp_path):
         assert tags["DateTime"].value == "2026:11:05 21:30:15"
         assert tags["ImageDescription"].value == "Ete a Paris, frame 3, colour negative"
 
+    # Text tags are ASCII; letters are spelled out as well as ASCII allows.
+    for name, ascii_name in [
+        ("København, frame 3", "Kobenhavn, frame 3"),
+        ("Łódź Straße", "Lodz Strasse"),
+        ("Æbleskiver Œuvre", "AEbleskiver OEuvre"),
+        ("Москва, frame 3, colour negative", "frame 3, colour negative"),
+        ("東京 2024, frame 1", "2024, frame 1"),
+    ]:
+        assert imaging._ascii(name) == ascii_name
+
     # Black & white JPEGs have no sRGB profile (it is for colour), and without a known
     # scanner there is no make or model.
     save_jpeg(tmp_path / "bw.jpg", render(raw, Adjust("bw-negative")), 600, info=imaging.ScanInfo(datetime.now()))

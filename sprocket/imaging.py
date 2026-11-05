@@ -3,6 +3,7 @@
 import io
 import math
 import os
+import re
 import unicodedata
 from dataclasses import KW_ONLY, dataclass
 from datetime import datetime
@@ -335,9 +336,24 @@ def srgb_profile() -> bytes:
     return ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
 
 
+# Letters that Unicode doesn't split into an ASCII letter and accents.
+_TRANSLITERATIONS = str.maketrans(
+    {
+        "ß": "ss", "æ": "ae", "Æ": "AE", "œ": "oe", "Œ": "OE", "ø": "o", "Ø": "O", "ł": "l", "Ł": "L",
+        "đ": "d", "Đ": "D", "ð": "d", "Ð": "D", "þ": "th", "Þ": "Th", "ı": "i", "ħ": "h", "Ħ": "H",
+    }
+)  # fmt: skip
+
+
 def _ascii(text: str) -> str:
-    """EXIF and TIFF text is 7-bit ASCII: "Été à Paris" -> "Ete a Paris"."""
-    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    """EXIF and TIFF text is 7-bit ASCII: "Été à København" -> "Ete a Kobenhavn".
+
+    Other scripts can't be spelled in ASCII and are left out, along with the punctuation
+    that is then left dangling: "Москва, frame 3" -> "frame 3".
+    """
+    folded = unicodedata.normalize("NFKD", text.translate(_TRANSLITERATIONS))
+    folded = folded.encode("ascii", "ignore").decode()
+    return re.sub(r"\s+", " ", folded).strip(" ,.-")
 
 
 def _exif(info: ScanInfo, dpi: int) -> Image.Exif:

@@ -69,8 +69,10 @@ press **Lock colours** on a typical frame (see below).
   rotated. Keep it if you want to do your own conversion later, e.g. with darktable's
   negadoctor, RawTherapee's film negative tool or Negative Lab Pro. A raw TIFF looks
   dark and, for negatives, orange; that's expected.
-- Both files record the scanner, the date of the scan, the roll, frame and film type
-  in their metadata (EXIF in the JPEG), so photo libraries can sort and caption them.
+- Both files record the date of the scan, the roll, frame and film type and, unless
+  you chose the device with `--device`, the scanner in their metadata (EXIF in the
+  JPEG), so photo libraries can sort and caption them. Metadata text is plain ASCII,
+  so "København" is written as "Kobenhavn" there; file and folder names keep it as typed.
   Colour JPEGs carry an sRGB profile, so colour-managed programs show them as intended.
 - Existing files are never overwritten; a repeat scan of a frame is saved as `…-03-2.jpg`.
 
