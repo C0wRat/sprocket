@@ -56,7 +56,7 @@ class PresetStore:
         self.path = folder / FILENAME
         self._lock = threading.Lock()
 
-    def list(self) -> list[Preset]:
+    def entries(self) -> list[Preset]:
         with self._lock:
             return self._load()
 

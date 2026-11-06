@@ -10,12 +10,12 @@ from sprocket.service import ScannerService
 
 def test_presets_are_saved_renamed_and_deleted(tmp_path):
     store = PresetStore(tmp_path)
-    assert store.list() == []
+    assert store.entries() == []
     store.save("Portra 400", PresetValues(warmth=12, saturation=-5))
     store.save("HP5 punchy", PresetValues(film="bw-negative", contrast=30))
     # Saving under an existing name (ignoring case and spaces) replaces it.
     store.save(" portra 400 ", PresetValues(warmth=20))
-    assert [(p.name, p.film, p.warmth) for p in PresetStore(tmp_path).list()] == [
+    assert [(p.name, p.film, p.warmth) for p in PresetStore(tmp_path).entries()] == [
         ("HP5 punchy", "bw-negative", 0),
         ("portra 400", "color-negative", 20),
     ]
@@ -29,15 +29,15 @@ def test_presets_are_saved_renamed_and_deleted(tmp_path):
     store.delete("HP5 punchy")
     with pytest.raises(PresetNotFound):
         store.delete("HP5 punchy")
-    assert [p.name for p in store.list()] == ["Portra Warm"]
+    assert [p.name for p in store.entries()] == ["Portra Warm"]
 
 
 def test_a_damaged_presets_file_is_survived(tmp_path):
     path = tmp_path / FILENAME
     path.write_text("{not json")
-    assert PresetStore(tmp_path).list() == []
+    assert PresetStore(tmp_path).entries() == []
     path.write_text(json.dumps({"presets": [{"name": "ok", "warmth": 5}, {"name": "bad", "warmth": 500}, "junk"]}))
-    assert [p.name for p in PresetStore(tmp_path).list()] == ["ok"]
+    assert [p.name for p in PresetStore(tmp_path).entries()] == ["ok"]
 
 
 @pytest.fixture

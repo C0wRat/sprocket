@@ -107,7 +107,7 @@ def create_app(service: ScannerService) -> FastAPI:
 
     @app.get("/api/presets")
     def list_presets() -> dict:
-        return {"presets": [p.model_dump() for p in presets.list()]}
+        return {"presets": [p.model_dump() for p in presets.entries()]}
 
     @app.put("/api/presets/{name}")
     def save_preset(name: str, values: PresetValues) -> dict:
