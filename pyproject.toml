@@ -1,0 +1,12 @@
+# Tool settings only. Sprocket isn't packaged; see README.md for how to run it.
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+# pycodestyle, Pyflakes, import order, pyupgrade, bugbear
+select = ["E", "W", "F", "I", "UP", "B"]
+
+[tool.ruff.format]
+quote-style = "double"
