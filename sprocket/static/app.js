@@ -12,7 +12,8 @@ const el = {
   lock: $('lock'), lockHint: $('lock-hint'),
   histogramBox: $('histogram-box'), histogram: $('histogram'), clipping: $('clipping'),
   rotate: $('rotate'), mirror: $('mirror'), cropInfo: $('crop-info'), cropReset: $('crop-reset'),
-  resolution: $('resolution'), sizeHint: $('size-hint'), roll: $('roll'), frameNo: $('frame-no'),
+  resolution: $('resolution'), resolutionOut: $('resolution-out'), resolutionTicks: $('resolution-ticks'),
+  sizeHint: $('size-hint'), roll: $('roll'), frameNo: $('frame-no'),
   saveJpeg: $('save-jpeg'), saveTiff: $('save-tiff'), sharpen: $('sharpen'),
   btnPreview: $('btn-preview'), btnScan: $('btn-scan'), outputDir: $('output-dir'),
   scans: $('scans'), scansEmpty: $('scans-empty'), toast: $('toast'),
@@ -381,17 +382,31 @@ function renderCropInfo() {
 
 // --- Controls ----------------------------------------------------------------------
 
-let shownResolutions = '';
+// The resolution slider steps through the scanner's resolutions: its value is an index.
+let resolutions = [];
 
 function renderResolutions(caps) {
-  const key = caps.resolutions.join(',');
-  if (key === shownResolutions) return;
-  shownResolutions = key;
-  el.resolution.replaceChildren(...caps.resolutions.map((r) => new Option(`${r} dpi`, r)));
-  if (!caps.resolutions.includes(Number(settings.resolution))) {
-    settings.resolution = caps.resolutions.reduce((a, b) => (Math.abs(b - 3600) < Math.abs(a - 3600) ? b : a));
+  if (caps.resolutions.join(',') === resolutions.join(',')) return;
+  resolutions = [...caps.resolutions];
+  el.resolution.max = resolutions.length - 1;
+  el.resolution.disabled = resolutions.length < 2;
+  el.resolutionTicks.replaceChildren(...resolutions.map((r) => {
+    const tick = document.createElement('span');
+    tick.textContent = r;
+    return tick;
+  }));
+  if (!resolutions.includes(Number(settings.resolution))) {
+    settings.resolution = resolutions.reduce((a, b) => (Math.abs(b - 3600) < Math.abs(a - 3600) ? b : a));
   }
-  el.resolution.value = settings.resolution;
+  renderResolution();
+}
+
+function renderResolution() {
+  const index = resolutions.indexOf(Number(settings.resolution));
+  el.resolution.value = index;
+  el.resolutionOut.value = `${settings.resolution} dpi`;
+  el.resolution.setAttribute('aria-valuetext', `${settings.resolution} dpi`);
+  el.resolutionTicks.querySelectorAll('span').forEach((tick, i) => tick.classList.toggle('on', i === index));
   renderSizeHint();
 }
 
@@ -590,10 +605,10 @@ function bindControls() {
     drawCrop();
     renderPreview();
   });
-  el.resolution.addEventListener('change', () => {
-    settings.resolution = Number(el.resolution.value);
+  el.resolution.addEventListener('input', () => {
+    settings.resolution = resolutions[Number(el.resolution.value)] ?? settings.resolution;
     saveSettings();
-    renderSizeHint();
+    renderResolution();
   });
   el.roll.addEventListener('change', async () => {
     const typed = el.roll.value.trim() || 'roll';

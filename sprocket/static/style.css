@@ -284,7 +284,7 @@ h2 {
 .range input.num::-webkit-inner-spin-button, .range input.num::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
 .range input.num:hover:not(:disabled) { border-color: var(--line-strong); }
 .range input.num:focus { border-color: var(--accent); background: var(--field); outline: none; }
-.range input[type="range"] {
+.range input[type="range"], .resolution input {
   --track: var(--line-strong);
   width: 100%;
   height: 22px;
@@ -294,9 +294,13 @@ h2 {
   -webkit-appearance: none;
   appearance: none;
 }
-.range input::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--track); }
-.range input::-moz-range-track { height: 4px; border-radius: 2px; background: var(--track); }
-.range input::-webkit-slider-thumb {
+.range input::-webkit-slider-runnable-track, .resolution input::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--track);
+}
+.range input::-moz-range-track, .resolution input::-moz-range-track { height: 4px; border-radius: 2px; background: var(--track); }
+.range input::-webkit-slider-thumb, .resolution input::-webkit-slider-thumb {
   width: 14px;
   height: 14px;
   margin-top: -5px;
@@ -306,9 +310,15 @@ h2 {
   -webkit-appearance: none;
   appearance: none;
 }
-.range input::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--accent); }
-.range input:hover::-webkit-slider-thumb { background: var(--accent-hover); }
-.range input:hover::-moz-range-thumb { background: var(--accent-hover); }
+.range input::-moz-range-thumb, .resolution input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.range input:hover::-webkit-slider-thumb, .resolution input:hover::-webkit-slider-thumb { background: var(--accent-hover); }
+.range input:hover::-moz-range-thumb, .resolution input:hover::-moz-range-thumb { background: var(--accent-hover); }
 .range input.track-warmth { --track: linear-gradient(to right, #4f86d6, var(--line-strong) 50%, #e8913a); }
 .range input.track-tint { --track: linear-gradient(to right, #4caf50, var(--line-strong) 50%, #c95fc9); }
 .range:has(input:disabled) { opacity: .4; }
@@ -335,6 +345,13 @@ h2 {
   font-size: 14px;
 }
 .field-row { display: flex; gap: 10px; margin-top: 16px; }
+.resolution-head { display: flex; justify-content: space-between; }
+.field.resolution input { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.resolution-head output { color: var(--text); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Labels under the resolution slider, centred under each step (the thumb is 14px wide). */
+.ticks { display: flex; justify-content: space-between; margin: -4px 0 0; font-size: 11px; color: var(--faint); }
+.ticks span { width: 14px; display: flex; justify-content: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ticks span.on { color: var(--text); }
 .grow { flex: 1; min-width: 0; }
 .frame-field { width: 84px; flex: none; }
 .check { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; cursor: pointer; }
