@@ -53,6 +53,8 @@ lets you try the error paths (see the top of `fake_scanimage.py`).
 Run all of these before you push. A PR should pass every one. GitHub Actions
 (`.github/workflows/ci.yml`) runs the same checks on every pull request and push to
 `main`, on Python 3.10 and the newest Python. Only merge a PR once they pass.
+The Docker image is built on every PR too (`.github/workflows/docker.yml`); it's only
+published from `main` (as `latest`) and from tags.
 Another check makes sure the PR title is a Conventional Commit (see
 [Pull requests](#pull-requests)).
 
@@ -181,6 +183,7 @@ Commits follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.
   | `library` | `sprocket/library.py`, the recent-scans list |
   | `output` | file names, formats and metadata of saved scans |
   | `deps` | `requirements*.txt` |
+  | `docker` | `Dockerfile`, `.dockerignore`, the published image |
   | `readme` / `contributing` | those documents |
 
 - **Breaking changes** are anything that invalidates what users already have: saved

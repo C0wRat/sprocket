@@ -1,0 +1,6 @@
+# Only requirements.txt and sprocket/ go into the image.
+*
+!requirements.txt
+!sprocket/
+**/__pycache__
+**/*.pyc
