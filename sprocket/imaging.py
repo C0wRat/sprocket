@@ -92,14 +92,16 @@ class Levels:
 
 
 def orient(image: np.ndarray, rotate: int = 0, mirror: bool = False) -> np.ndarray:
-    """Mirror left-right, then rotate clockwise. Returns a view.
+    """Rotate clockwise, then mirror left-right. Returns a view.
 
-    The web UI maps crop rectangles with the same convention (static/geometry.js).
+    Mirroring last means it always flips the picture left-right as it is shown, whatever
+    the rotation. The web UI maps crop rectangles with the same convention
+    (static/geometry.js).
     """
-    if mirror:
-        image = image[:, ::-1]
     k = (rotate // 90) % 4
-    return np.rot90(image, k=-k) if k else image
+    if k:
+        image = np.rot90(image, k=-k)
+    return image[:, ::-1] if mirror else image
 
 
 def measure_levels(
