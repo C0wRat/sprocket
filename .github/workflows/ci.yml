@@ -27,7 +27,7 @@ jobs:
         # 3.10 is the oldest the README promises; 3.x is the newest release.
         python: ["3.10", "3.x"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
@@ -46,7 +46,7 @@ jobs:
     name: Browser-code tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
