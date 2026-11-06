@@ -33,7 +33,9 @@ Then open <http://localhost:8800>. Useful options:
 | `--debug` | log more detail, including everything `scanimage` prints |
 
 The menu at the top right switches between a **Light** and **Dark** look, or follows
-your computer's setting (**System**, the default). This browser remembers the choice.
+your computer's setting (**System**, the default). There are also **Dracula**, **High
+contrast** (WCAG AAA text contrast and thick focus rings) and **Retro film scanner**.
+This browser remembers the choice.
 The area around the picture stays a neutral dark grey either way, because a bright
 surround changes how you judge exposure and colour.
 
