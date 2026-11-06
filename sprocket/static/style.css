@@ -252,6 +252,20 @@ h2 {
 .group-head { display: flex; align-items: baseline; justify-content: space-between; }
 .group-head .link { font-size: 12px; }
 
+.presets { display: flex; gap: 8px; margin-bottom: 6px; }
+.presets select {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.preset-actions { display: flex; gap: 14px; margin-bottom: 10px; font-size: 12px; }
+.presets + .histogram, .preset-actions + .histogram { margin-top: 12px; }
 .histogram { margin: 0 0 14px; }
 .histogram canvas {
   display: block;
