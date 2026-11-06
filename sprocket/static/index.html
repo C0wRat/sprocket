@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sprocket</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <script>
+    // Apply the saved theme before the page is drawn, so it doesn't flash dark first.
+    // app.js keeps it up to date (see applyTheme there).
+    (() => {
+      let theme = 'system';
+      try { theme = localStorage.getItem('sprocket.theme') || theme; } catch { /* no storage */ }
+      if (theme === 'system') theme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
   <link rel="stylesheet" href="/static/style.css">
   <script type="module" src="/static/app.js"></script>
 </head>
@@ -14,8 +24,21 @@
       <img class="logo" src="/static/icon.svg" alt="">
       <span>Sprocket</span>
     </div>
-    <div class="status" id="status" data-tone="idle" aria-live="polite">
-      <span class="dot"></span><span id="status-text">Connecting…</span>
+    <div class="topbar-end">
+      <div class="status" id="status" data-tone="idle" aria-live="polite">
+        <span class="dot"></span><span id="status-text">Connecting…</span>
+      </div>
+      <label class="theme">
+        <span class="visually-hidden">Theme</span>
+        <select id="theme" title="Colour theme of Sprocket. The area around the picture stays neutral grey.">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="dracula">Dracula</option>
+          <option value="contrast">High contrast</option>
+          <option value="retro">Retro film scanner</option>
+        </select>
+      </label>
     </div>
   </header>
 
@@ -28,8 +51,8 @@
         </div>
         <div class="empty" id="empty">
           <svg viewBox="0 0 180 96" aria-hidden="true">
-            <rect x="1" y="1" width="178" height="94" rx="6" fill="#1c1c1c" stroke="#333"/>
-            <g fill="#0d0d0d">
+            <rect class="strip" x="1" y="1" width="178" height="94" rx="6"/>
+            <g class="holes">
               <rect x="8" y="7" width="8" height="8" rx="1.5"/><rect x="28" y="7" width="8" height="8" rx="1.5"/>
               <rect x="48" y="7" width="8" height="8" rx="1.5"/><rect x="68" y="7" width="8" height="8" rx="1.5"/>
               <rect x="88" y="7" width="8" height="8" rx="1.5"/><rect x="108" y="7" width="8" height="8" rx="1.5"/>
@@ -41,11 +64,20 @@
               <rect x="128" y="81" width="8" height="8" rx="1.5"/><rect x="148" y="81" width="8" height="8" rx="1.5"/>
               <rect x="168" y="81" width="6" height="8" rx="1.5"/>
             </g>
-            <rect x="22" y="22" width="136" height="52" rx="2" fill="none" stroke="#f2a541" stroke-width="1.5" stroke-dasharray="5 4"/>
+            <rect class="frame-guide" x="22" y="22" width="136" height="52" rx="2" stroke-width="1.5" stroke-dasharray="5 4"/>
           </svg>
           <p class="empty-title">No preview yet</p>
           <p class="empty-text">Put your film in the holder, push it into the scanner until the frame you want is in place, then press <strong>Preview</strong>.</p>
         </div>
+      </div>
+
+      <div class="zoombar" id="zoombar" role="toolbar" aria-label="Zoom" hidden>
+        <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out (−)">−</button>
+        <output id="zoom-level" title="Zoom: scroll on the preview, or pinch. Drag with the middle button or Space held to move around">100%</output>
+        <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in (+)">+</button>
+        <button type="button" id="zoom-fit" title="Fit the whole frame (0)">Fit</button>
+        <button type="button" id="zoom-100" title="One preview pixel per screen pixel (1)">100%</button>
+        <button type="button" id="zoom-crop" class="toggle" aria-pressed="false" disabled title="Zoom to the crop, to check the framing (C)">Crop</button>
       </div>
 
       <div class="alert" id="alert" role="alert" hidden>
@@ -78,8 +110,8 @@
       <section class="group">
         <h2>Frame</h2>
         <div class="buttons">
-          <button type="button" class="btn" id="rotate" title="Rotate 90° clockwise">⟳ Rotate</button>
-          <button type="button" class="btn toggle" id="mirror" aria-pressed="false" title="Flip left to right">⇋ Mirror</button>
+          <button type="button" class="btn" id="rotate" title="Rotate 90° clockwise (R, or Shift+R anticlockwise)">⟳ Rotate</button>
+          <button type="button" class="btn toggle" id="mirror" aria-pressed="false" title="Flip left to right (M)">⇋ Mirror</button>
         </div>
         <div class="crop-row">
           <span id="crop-info">Crop: full frame</span>
@@ -110,29 +142,29 @@
         <label class="range">
           <span>Brightness</span>
           <input type="range" id="brightness" min="-100" max="100" step="1" value="0" title="Double-click to reset">
-          <output id="brightness-out">0</output>
+          <input type="number" class="num" id="brightness-out" min="-100" max="100" step="1" value="0" aria-label="Brightness value" title="Type a value from -100 to 100. Esc goes back">
         </label>
         <label class="range">
           <span>Contrast</span>
           <input type="range" id="contrast" min="-100" max="100" step="1" value="0" title="Double-click to reset">
-          <output id="contrast-out">0</output>
+          <input type="number" class="num" id="contrast-out" min="-100" max="100" step="1" value="0" aria-label="Contrast value" title="Type a value from -100 to 100. Esc goes back">
         </label>
         <label class="range">
           <span>Saturation</span>
           <input type="range" id="saturation" min="-100" max="100" step="1" value="0" title="Double-click to reset">
-          <output id="saturation-out">0</output>
+          <input type="number" class="num" id="saturation-out" min="-100" max="100" step="1" value="0" aria-label="Saturation value" title="Type a value from -100 to 100. Esc goes back">
         </label>
         <label class="range">
           <span>Warmth</span>
           <input type="range" id="warmth" class="track-warmth" min="-100" max="100" step="1" value="0" title="Bluer ← → more orange. Double-click to reset">
-          <output id="warmth-out">0</output>
+          <input type="number" class="num" id="warmth-out" min="-100" max="100" step="1" value="0" aria-label="Warmth value" title="Type a value from -100 to 100. Esc goes back">
         </label>
         <label class="range">
           <span>Tint</span>
           <input type="range" id="tint" class="track-tint" min="-100" max="100" step="1" value="0" title="Greener ← → more magenta. Double-click to reset">
-          <output id="tint-out">0</output>
+          <input type="number" class="num" id="tint-out" min="-100" max="100" step="1" value="0" aria-label="Tint value" title="Type a value from -100 to 100. Esc goes back">
         </label>
-        <p class="hint" id="adjust-hint">Double-click a slider to set it back to 0.</p>
+        <p class="hint" id="adjust-hint">Double-click a slider to set it back to 0, or type a value.</p>
         <button type="button" class="btn toggle lock" id="lock" aria-pressed="false" disabled>
           <svg viewBox="0 0 16 16" aria-hidden="true">
             <rect x="2.5" y="7" width="11" height="7.5" rx="1.5" fill="currentColor"/>
@@ -145,10 +177,14 @@
 
       <section class="group">
         <h2>Scan</h2>
-        <label class="field">
-          <span>Resolution</span>
-          <select id="resolution"></select>
-        </label>
+        <div class="field resolution">
+          <label class="resolution-head" for="resolution">
+            <span>Resolution</span>
+            <output id="resolution-out" for="resolution"></output>
+          </label>
+          <input type="range" id="resolution" min="0" max="0" step="1" value="0">
+          <div class="ticks" id="resolution-ticks" aria-hidden="true"></div>
+        </div>
         <p class="hint" id="size-hint"></p>
         <div class="field-row">
           <label class="field grow">
@@ -189,5 +225,20 @@
       <p class="hint" id="scans-empty" hidden>Your scans will appear here.</p>
     </section>
   </main>
+
+  <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-name">
+    <div class="lightbox-bar">
+      <span class="lightbox-name" id="lightbox-name"></span>
+      <span class="lightbox-count" id="lightbox-count"></span>
+      <span class="lightbox-files" id="lightbox-files"></span>
+      <button type="button" class="icon-btn" id="lightbox-close" aria-label="Close" title="Close (Esc)">×</button>
+    </div>
+    <div class="lightbox-stage" id="lightbox-stage">
+      <img id="lightbox-img" alt="">
+      <p class="hint lightbox-note" id="lightbox-note" hidden></p>
+    </div>
+    <button type="button" class="lightbox-nav prev" id="lightbox-prev" aria-label="Previous scan" title="Previous (←)">‹</button>
+    <button type="button" class="lightbox-nav next" id="lightbox-next" aria-label="Next scan" title="Next (→)">›</button>
+  </dialog>
 </body>
 </html>
