@@ -1,4 +1,4 @@
-import { clamp, mapRect, toDisplay, toScanner } from './geometry.js';
+import { clamp, mapRect, migrateOrientation, toDisplay, toScanner } from './geometry.js';
 import { computeHistogram, drawHistogram } from './histogram.js';
 
 const $ = (id) => document.getElementById(id);
@@ -29,6 +29,8 @@ const sliders = Object.fromEntries(SLIDERS.map((name) => [name, { input: $(name)
 const DEFAULTS = {
   film: 'color-negative', brightness: 0, contrast: 0, saturation: 0, warmth: 0, tint: 0,
   rotate: 0, mirror: false, crop: null,
+  // How rotate and mirror combine: 2 = rotate, then mirror (see geometry.js).
+  orientation: 2,
   // Locked colours: the levels of one frame, { film, roll, low: [r, g, b], high: [r, g, b] }.
   lock: null,
   resolution: 3600, roll: 'roll-01', frame: 1, saveJpeg: true, saveTiff: true, sharpen: 'off',
@@ -59,6 +61,8 @@ function loadSettings() {
     s[name] = clamp(Math.round(s[name]), -100, 100);
   }
   if (![0, 90, 180, 270].includes(s.rotate)) s.rotate = 0;
+  s.mirror = s.mirror === true;
+  if (saved.orientation !== 2) Object.assign(s, migrateOrientation(s), { orientation: 2 });
   if (!isValidCrop(s.crop)) s.crop = null;
   if (!isValidLock(s.lock)) s.lock = null;
   if (!SHARPEN.includes(s.sharpen)) s.sharpen = DEFAULTS.sharpen;
