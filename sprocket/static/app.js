@@ -15,7 +15,7 @@ const el = {
   resolution: $('resolution'), sizeHint: $('size-hint'), roll: $('roll'), frameNo: $('frame-no'),
   saveJpeg: $('save-jpeg'), saveTiff: $('save-tiff'), sharpen: $('sharpen'),
   btnPreview: $('btn-preview'), btnScan: $('btn-scan'), outputDir: $('output-dir'),
-  scans: $('scans'), scansEmpty: $('scans-empty'), toast: $('toast'),
+  scans: $('scans'), scansEmpty: $('scans-empty'), toast: $('toast'), theme: $('theme'),
 };
 
 const FILMS = ['color-negative', 'slide', 'bw-negative'];
@@ -34,6 +34,11 @@ const DEFAULTS = {
   resolution: 3600, roll: 'roll-01', frame: 1, saveJpeg: true, saveTiff: true, sharpen: 'off',
 };
 const SHARPEN = ['off', 'low', 'medium', 'high'];
+// The colour theme is remembered on its own, so it applies before the settings load
+// (see the script at the top of index.html). "system" follows the computer's setting.
+const THEME_KEY = 'sprocket.theme';
+const THEMES = ['system', 'light', 'dark'];
+const prefersLight = matchMedia('(prefers-color-scheme: light)');
 
 const settings = loadSettings();
 let status = null;
@@ -44,6 +49,7 @@ let previewUrl = null;
 let tracked = null; // the job we're following: { id, state, sawResult }
 let pollTimer = 0;
 let drag = null;
+let shownHistogram = null; // { hist, mono }, redrawn when the theme changes
 
 // --- Settings (remembered by this browser) -----------------------------------
 
@@ -83,6 +89,33 @@ function saveSettings() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   } catch { /* storage unavailable: settings last until the page is closed */ }
+}
+
+// --- Theme ---------------------------------------------------------------------
+
+function savedTheme() {
+  try {
+    const theme = localStorage.getItem(THEME_KEY);
+    return THEMES.includes(theme) ? theme : 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+// Show the chosen theme. Every change (picker, the computer's setting) goes through here.
+function applyTheme(choice = savedTheme()) {
+  const theme = choice === 'system' ? (prefersLight.matches ? 'light' : 'dark') : choice;
+  document.documentElement.dataset.theme = theme;
+  el.theme.value = choice;
+  if (shownHistogram) drawHistogram(el.histogram, shownHistogram.hist, shownHistogram.mono);
+}
+
+function setTheme(choice) {
+  try {
+    if (choice === 'system') localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, choice);
+  } catch { /* storage unavailable: the theme lasts until the page is closed */ }
+  applyTheme(choice);
 }
 
 // --- Server -------------------------------------------------------------------
@@ -248,7 +281,8 @@ function renderHistogram(img) {
   ctx.drawImage(img, x, y, cw, ch, 0, 0, cw, ch);
   const hist = computeHistogram(ctx.getImageData(0, 0, cw, ch).data);
   el.histogramBox.hidden = false;
-  drawHistogram(el.histogram, hist, settings.film === 'bw-negative');
+  shownHistogram = { hist, mono: settings.film === 'bw-negative' };
+  drawHistogram(el.histogram, hist, shownHistogram.mono);
   const amount = (label, fraction) => {
     const span = document.createElement('span');
     span.textContent = `${label} ${percentText(fraction)}`;
@@ -578,6 +612,9 @@ function bindControls() {
     });
   }
 
+  el.theme.addEventListener('change', () => setTheme(el.theme.value));
+  prefersLight.addEventListener('change', () => applyTheme(el.theme.value));
+
   el.btnPreview.addEventListener('click', () => startJob('preview'));
   el.btnScan.addEventListener('click', () => startJob('scan'));
   el.cancel.addEventListener('click', cancelJob);
@@ -728,6 +765,7 @@ function debounce(fn, ms) {
   };
 }
 
+applyTheme();
 renderControls();
 bindControls();
 poll();

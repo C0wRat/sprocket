@@ -25,10 +25,16 @@ export function computeHistogram(rgba) {
   return { r, g, b, pixels, black: pixels ? black / pixels : 0, white: pixels ? white / pixels : 0 };
 }
 
-const COLOURS = { r: 'rgb(235, 72, 72)', g: 'rgb(70, 200, 90)', b: 'rgb(70, 120, 250)', grey: 'rgb(200, 200, 200)' };
+// The colours of the channels come from the theme (--hist-r and so on in style.css).
+function colours(canvas) {
+  const style = getComputedStyle(canvas);
+  const get = (name) => style.getPropertyValue(name).trim();
+  return { r: get('--hist-r'), g: get('--hist-g'), b: get('--hist-b'), grey: get('--hist-grey') };
+}
 
 // Draw the channels on top of each other; where they overlap they add up to white.
 export function drawHistogram(canvas, hist, mono = false) {
+  const palette = colours(canvas);
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
@@ -36,7 +42,7 @@ export function drawHistogram(canvas, hist, mono = false) {
   canvas.height = Math.round(h * dpr);
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
-  const channels = mono ? [[hist.g, COLOURS.grey]] : [[hist.r, COLOURS.r], [hist.g, COLOURS.g], [hist.b, COLOURS.b]];
+  const channels = mono ? [[hist.g, palette.grey]] : [[hist.r, palette.r], [hist.g, palette.g], [hist.b, palette.b]];
   // Scale to the highest level that isn't pure black or white, so a clipped spike
   // doesn't flatten everything else; spikes are drawn full height.
   let peak = 1;
