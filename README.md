@@ -44,7 +44,8 @@ Then open <http://localhost:8800>. Useful options:
    or backwards. The R key rotates 90° clockwise, and Shift+R anticlockwise.
 5. Fine-tune the picture with the **Adjust** sliders: Brightness, Contrast, Saturation,
    Warmth (bluer to more orange) and Tint (greener to more magenta). The preview updates
-   right away without scanning again. Double-click a slider to set it back to 0.
+   right away without scanning again. Double-click a slider to set it back to 0, or type
+   an exact value in the box next to it (Esc goes back to the value before).
    The histogram above the sliders shows the picture inside the crop, with the share
    of pixels clipped to pure black or white; it turns orange above 1 %. Holder edges
    left inside the crop show up there as clipping.

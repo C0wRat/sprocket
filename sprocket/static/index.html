@@ -100,29 +100,29 @@
         <label class="range">
           <span>Brightness</span>
           <input type="range" id="brightness" min="-100" max="100" step="1" value="0" title="Double-click to reset">
-          <output id="brightness-out">0</output>
+          <input type="number" class="num" id="brightness-out" min="-100" max="100" step="1" value="0" aria-label="Brightness value" title="Type a value from -100 to 100. Esc goes back">
         </label>
         <label class="range">
           <span>Contrast</span>
           <input type="range" id="contrast" min="-100" max="100" step="1" value="0" title="Double-click to reset">
-          <output id="contrast-out">0</output>
+          <input type="number" class="num" id="contrast-out" min="-100" max="100" step="1" value="0" aria-label="Contrast value" title="Type a value from -100 to 100. Esc goes back">
         </label>
         <label class="range">
           <span>Saturation</span>
           <input type="range" id="saturation" min="-100" max="100" step="1" value="0" title="Double-click to reset">
-          <output id="saturation-out">0</output>
+          <input type="number" class="num" id="saturation-out" min="-100" max="100" step="1" value="0" aria-label="Saturation value" title="Type a value from -100 to 100. Esc goes back">
         </label>
         <label class="range">
           <span>Warmth</span>
           <input type="range" id="warmth" class="track-warmth" min="-100" max="100" step="1" value="0" title="Bluer ← → more orange. Double-click to reset">
-          <output id="warmth-out">0</output>
+          <input type="number" class="num" id="warmth-out" min="-100" max="100" step="1" value="0" aria-label="Warmth value" title="Type a value from -100 to 100. Esc goes back">
         </label>
         <label class="range">
           <span>Tint</span>
           <input type="range" id="tint" class="track-tint" min="-100" max="100" step="1" value="0" title="Greener ← → more magenta. Double-click to reset">
-          <output id="tint-out">0</output>
+          <input type="number" class="num" id="tint-out" min="-100" max="100" step="1" value="0" aria-label="Tint value" title="Type a value from -100 to 100. Esc goes back">
         </label>
-        <p class="hint" id="adjust-hint">Double-click a slider to set it back to 0.</p>
+        <p class="hint" id="adjust-hint">Double-click a slider to set it back to 0, or type a value.</p>
         <button type="button" class="btn toggle lock" id="lock" aria-pressed="false" disabled>
           <svg viewBox="0 0 16 16" aria-hidden="true">
             <rect x="2.5" y="7" width="11" height="7.5" rx="1.5" fill="currentColor"/>
