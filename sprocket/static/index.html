@@ -135,10 +135,14 @@
 
       <section class="group">
         <h2>Scan</h2>
-        <label class="field">
-          <span>Resolution</span>
-          <select id="resolution"></select>
-        </label>
+        <div class="field resolution">
+          <label class="resolution-head" for="resolution">
+            <span>Resolution</span>
+            <output id="resolution-out" for="resolution"></output>
+          </label>
+          <input type="range" id="resolution" min="0" max="0" step="1" value="0">
+          <div class="ticks" id="resolution-ticks" aria-hidden="true"></div>
+        </div>
         <p class="hint" id="size-hint"></p>
         <div class="field-row">
           <label class="field grow">
