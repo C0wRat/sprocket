@@ -106,7 +106,7 @@ def create_app(service: ScannerService) -> FastAPI:
 
 
 def _parse_crop(text: str | None) -> tuple[float, float, float, float] | None:
-    """"x0,y0,x1,y1" (fractions of the scan area) -> tuple, or None."""
+    """Parse "x0,y0,x1,y1" (fractions of the scan area) into a tuple, or None."""
     if not text:
         return None
     try:
@@ -122,7 +122,7 @@ def _parse_crop(text: str | None) -> tuple[float, float, float, float] | None:
 
 
 def _parse_levels(text: str | None) -> imaging.Levels | None:
-    """"lowR,lowG,lowB,highR,highG,highB" (raw values, as GET /api/levels gives them) -> Levels, or None."""
+    """Parse "lowR,lowG,lowB,highR,highG,highB" (raw values, as GET /api/levels gives them) into Levels, or None."""
     if not text:
         return None
     try:
@@ -131,4 +131,6 @@ def _parse_levels(text: str | None) -> imaging.Levels | None:
             raise ValueError
         return LockedLevels(low=values[:3], high=values[3:]).to_imaging()
     except ValueError:  # includes pydantic's ValidationError
-        raise HTTPException(400, "levels must be six numbers from 0 to 65535: lowR,lowG,lowB,highR,highG,highB") from None
+        raise HTTPException(
+            400, "levels must be six numbers from 0 to 65535: lowR,lowG,lowB,highR,highG,highB"
+        ) from None

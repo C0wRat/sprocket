@@ -61,8 +61,14 @@ def test_preview_then_scan(client, output):
 
     crop = {"x0": 0.1, "y0": 0.2, "x1": 0.9, "y1": 0.6}  # 29.06 x 10 mm: 229 x 79 px at 200 dpi
     body = {
-        "resolution": 200, "roll": "Trip 1", "frame": 3, "crop": crop, "rotate": 90,
-        "contrast": 25, "warmth": -10, "sharpen": "medium",
+        "resolution": 200,
+        "roll": "Trip 1",
+        "frame": 3,
+        "crop": crop,
+        "rotate": 90,
+        "contrast": 25,
+        "warmth": -10,
+        "sharpen": "medium",
     }
     assert client.post("/api/scan", json=body).status_code == 202
     job = wait_for_job(client)
@@ -95,7 +101,7 @@ def test_colours_can_be_locked_to_a_frame(client, output):
     assert lock["film"] == "color-negative"
     # A preview that has been replaced since can't be locked on.
     assert client.get("/api/levels", params={"preview": on_screen + "-old"}).status_code == 409
-    assert all(lo < hi for lo, hi in zip(lock["low"], lock["high"]))
+    assert all(lo < hi for lo, hi in zip(lock["low"], lock["high"], strict=True))
     levels = ",".join(str(v) for v in lock["low"] + lock["high"])
     # The preview with the frame's own levels looks the same as measuring them again.
     locked = client.get("/api/preview.jpg", params={"crop": "0.1,0.1,0.9,0.9", "levels": levels})
@@ -119,7 +125,12 @@ def test_colours_can_be_locked_to_a_frame(client, output):
     assert abs(same.mean() - own.mean()) < 3
     assert washed_out.mean() > own.mean() + 20
     assert washed_out.min() > 30
-    assert client.post("/api/scan", json={"resolution": 100, "levels": {"low": [0, 0, 0], "high": [1, 1, 70000]}}).status_code == 422
+    assert (
+        client.post(
+            "/api/scan", json={"resolution": 100, "levels": {"low": [0, 0, 0], "high": [1, 1, 70000]}}
+        ).status_code
+        == 422
+    )
 
 
 def test_bad_requests_are_rejected(client):

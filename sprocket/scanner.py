@@ -123,9 +123,7 @@ _EXTENT = re.compile(r"^\s*-([xy])\s+[\d.]+\.\.([\d.]+)mm", re.MULTILINE)
 
 def query_capabilities(scanimage: str, device: str, timeout: float = 30.0) -> Capabilities:
     """Read the resolutions and scan-area size from `scanimage -A`."""
-    proc = subprocess.run(
-        [scanimage, "-d", device, "-A"], capture_output=True, text=True, timeout=timeout, check=False
-    )
+    proc = subprocess.run([scanimage, "-d", device, "-A"], capture_output=True, text=True, timeout=timeout, check=False)
     text = proc.stdout + proc.stderr
     resolutions = _RESOLUTIONS.search(text)
     extent = dict(_EXTENT.findall(text))
@@ -140,16 +138,14 @@ def describe_failure(stderr: str) -> tuple[str, bool]:
     text = stderr.lower()
     if "device busy" in text:
         return (
-            "The scanner is in use by another program (VueScan, SilverFast, XSane…). "
-            "Close it and try again.",
+            "The scanner is in use by another program (VueScan, SilverFast, XSane…). Close it and try again.",
             False,
         )
     if "open of device" in text:
         return ("Couldn't open the scanner. Check that it is plugged in and switched on.", True)
     if "error during device i/o" in text:
         return (
-            "Lost contact with the scanner. Check the USB cable, or unplug the scanner "
-            "and plug it back in.",
+            "Lost contact with the scanner. Check the USB cable, or unplug the scanner and plug it back in.",
             True,
         )
     last = next((line for line in reversed(stderr.splitlines()) if line.strip()), "")

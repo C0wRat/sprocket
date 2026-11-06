@@ -183,7 +183,7 @@ def test_measured_levels_can_be_reused(film):
     image = negative()
     crop = (0.0, 0.0, 0.5, 1.0)
     levels = measure_levels(image, film, crop)
-    assert all(lo < hi for lo, hi in zip(levels.low, levels.high))
+    assert all(lo < hi for lo, hi in zip(levels.low, levels.high, strict=True))
     expected = render(image, Adjust(film), stats_crop=crop)
     assert np.array_equal(render(image, Adjust(film), levels), expected)
     # Another frame converted with these levels keeps this frame's colours.
