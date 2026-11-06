@@ -40,7 +40,8 @@ Then open <http://localhost:8800>. Useful options:
 2. Choose the film type: **Color neg**, **Slide** or **B&W neg**.
 3. Press **Preview** (or the P key). It takes about 18 seconds.
 4. Drag on the preview to crop out the holder's edges, and drag the box to move it.
-   Use **Rotate** and **Mirror** if the picture is the wrong way round or backwards.
+   Use **Rotate** and **Mirror** (or the M key) if the picture is the wrong way round
+   or backwards.
    To look closely at focus, grain or dust, scroll on the preview (or pinch) to zoom in
    where the pointer is, and drag with the middle mouse button, or with Space held, to
    move around. The buttons at the top right, or the keys **+** and **−**, zoom in and
