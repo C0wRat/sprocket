@@ -173,3 +173,51 @@ def test_errors_are_reported(client, monkeypatch):
     job = wait_for_job(client)
     assert job["state"] == "error"
     assert "another program" in job["error"]
+
+
+def test_choosing_between_two_scanners(output, fake_scanimage, sysfs, plug_in):
+    plug_in("1-5", devnum=10)
+    plug_in("1-6", "130d", devnum=11)
+    service = ScannerService(output, scanimage=fake_scanimage, sysfs=sysfs)
+    with TestClient(create_app(service)) as client:
+        status = client.get("/api/status").json()
+        assert [s["key"] for s in status["scanners"]] == ["Plustek OpticFilm 8100@1-5", "Plustek OpticFilm 8200i@1-6"]
+        assert status["scanner"]["key"] == "Plustek OpticFilm 8100@1-5"  # the first, as before
+        assert status["chosen"] is None and status["choosable"] is True
+
+        assert client.put("/api/scanner", json={"key": "Plustek OpticFilm 8200i@1-6"}).status_code == 200
+        assert client.get("/api/status").json()["scanner"]["model"] == "Plustek OpticFilm 8200i"
+        assert client.put("/api/scanner", json={"key": "Plustek OpticFilm 8100@9-9"}).status_code == 400
+
+        # Capabilities are asked for per scanner, and a preview works on the chosen one.
+        client.post("/api/preview")
+        assert wait_for_job(client)["state"] == "done"
+        assert client.get("/api/status").json()["capabilities"]["resolutions"] == [100, 200]
+
+    # Unplugged and plugged back in: a new USB device number, the same port. The choice
+    # is kept, also by a new Sprocket (a restart).
+    plug_in("1-6", "130d", devnum=23)
+    restarted = ScannerService(output, scanimage=fake_scanimage, sysfs=sysfs)
+    device = restarted.device(refresh=True)
+    assert (device.model, device.name) == ("Plustek OpticFilm 8200i", "genesys:libusb:001:023")
+
+    # While the chosen one is unplugged, the other one is used.
+    (sysfs / "1-6" / "idVendor").write_text("0000\n")
+    assert restarted.device(refresh=True).model == "Plustek OpticFilm 8100"
+    assert restarted.chosen == "Plustek OpticFilm 8200i@1-6"
+
+
+def test_the_scanner_cant_be_changed_during_a_job(output, fake_scanimage, sysfs, plug_in, monkeypatch):
+    plug_in("1-5")
+    monkeypatch.setenv("FAKE_SCANIMAGE_DELAY", "0.05")
+    with TestClient(create_app(ScannerService(output, scanimage=fake_scanimage, sysfs=sysfs))) as client:
+        client.post("/api/preview")
+        assert client.put("/api/scanner", json={"key": "Plustek OpticFilm 8100@1-5"}).status_code == 409
+        client.post("/api/cancel")
+        wait_for_job(client)
+
+
+def test_a_device_given_on_the_command_line_is_the_only_choice(client):
+    status = client.get("/api/status").json()
+    assert status["choosable"] is False
+    assert [s["key"] for s in status["scanners"]] == ["fake"]

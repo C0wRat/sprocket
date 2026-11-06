@@ -53,6 +53,14 @@ class Device:
     name: str  # SANE device name, e.g. "genesys:libusb:001:010"
     model: str  # e.g. "Plustek OpticFilm 8100"
     make: str = ""  # e.g. "Plustek"; empty when not known
+    port: str = ""  # USB port in sysfs, e.g. "1-5" or "3-1.2"; empty when not known
+
+    @property
+    def key(self) -> str:
+        """Identifies this scanner across unplugging and plugging back in: the model and the
+        USB port it's plugged into. The SANE name has the USB device number in it, which
+        changes every time."""
+        return f"{self.model}@{self.port}" if self.port else self.name
 
 
 @dataclass(frozen=True)
@@ -91,17 +99,23 @@ class ScanCancelled(Exception):
 
 
 def find_device(sysfs: Path = SYSFS_USB) -> Device | None:
-    """Find a connected OpticFilm scanner through sysfs.
+    """The first connected OpticFilm scanner (see find_devices), or None."""
+    return next(iter(find_devices(sysfs)), None)
+
+
+def find_devices(sysfs: Path = SYSFS_USB) -> list[Device]:
+    """Find the connected OpticFilm scanners through sysfs, in USB port order.
 
     This is instant, unlike `scanimage -L`, which probes every SANE backend (about
     8 s here). The SANE device name contains the USB bus and device numbers, which
     change whenever the scanner is plugged in again, so callers re-run this rather
-    than keeping the name.
+    than keeping the name, and tell scanners apart by Device.key.
     """
     try:
         entries = sorted(sysfs.iterdir())
     except OSError:
-        return None
+        return []
+    devices = []
     for entry in entries:
         try:
             if (entry / "idVendor").read_text().strip().lower() != PLUSTEK_VENDOR_ID:
@@ -113,8 +127,9 @@ def find_device(sysfs: Path = SYSFS_USB) -> Device | None:
             dev = int((entry / "devnum").read_text())
         except (OSError, ValueError):
             continue
-        return Device(f"genesys:libusb:{bus:03d}:{dev:03d}", f"Plustek {OPTICFILM_MODELS[product]}", "Plustek")
-    return None
+        model = f"Plustek {OPTICFILM_MODELS[product]}"
+        devices.append(Device(f"genesys:libusb:{bus:03d}:{dev:03d}", model, "Plustek", entry.name))
+    return devices
 
 
 _RESOLUTIONS = re.compile(r"--resolution\s+([\d|]+)dpi")
