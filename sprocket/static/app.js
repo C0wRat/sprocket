@@ -487,6 +487,18 @@ async function toggleLock() {
   renderPreview();
 }
 
+// The button and the M key both go through here, so the button always shows the state.
+function toggleMirror() {
+  settings.mirror = !settings.mirror;
+  renderMirror();
+  saveSettings();
+  renderPreview();
+}
+
+function renderMirror() {
+  el.mirror.setAttribute('aria-pressed', String(settings.mirror));
+}
+
 function renderSharpen() {
   for (const b of el.sharpen.querySelectorAll('button')) {
     b.setAttribute('aria-checked', String(b.dataset.value === settings.sharpen));
@@ -497,7 +509,7 @@ function renderSharpen() {
 function renderControls() {
   renderFilm();
   renderLock();
-  el.mirror.setAttribute('aria-pressed', String(settings.mirror));
+  renderMirror();
   el.roll.value = settings.roll;
   el.frameNo.value = settings.frame;
   el.saveJpeg.checked = settings.saveJpeg;
@@ -530,12 +542,7 @@ function bindControls() {
     renderCropInfo();
     renderPreview(); // the crop box is redrawn once the rotated image arrives
   });
-  el.mirror.addEventListener('click', () => {
-    settings.mirror = !settings.mirror;
-    el.mirror.setAttribute('aria-pressed', String(settings.mirror));
-    saveSettings();
-    renderPreview();
-  });
+  el.mirror.addEventListener('click', toggleMirror);
   el.cropReset.addEventListener('click', () => {
     settings.crop = null;
     saveSettings();
@@ -590,6 +597,7 @@ function bindControls() {
     const key = event.key.toLowerCase();
     if (key === 'p') startJob('preview');
     else if (key === 's') startJob('scan');
+    else if (key === 'm') toggleMirror();
     else return;
     event.preventDefault();
   });
