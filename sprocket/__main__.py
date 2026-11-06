@@ -53,8 +53,11 @@ def main(argv: list[str] | None = None) -> None:
     output.mkdir(parents=True, exist_ok=True)
     service = ScannerService(output, scanimage=args.scanimage, device=args.device)
     device = service.device(refresh=True)
+    others = [d for d in service.devices() if d != device]
     if device:
         log.info("Found %s (%s)", device.model, device.name)
+        for other in others:
+            log.info("Also found %s (%s); choose between them in the web page", other.model, other.name)
     else:
         log.warning("No OpticFilm scanner found yet. Plug it in and switch it on; Sprocket will notice.")
 

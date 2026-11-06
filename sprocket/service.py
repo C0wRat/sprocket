@@ -1,6 +1,7 @@
 """Scan jobs: one at a time, each in a background thread, observed by polling."""
 
 import itertools
+import json
 import logging
 import math
 import secrets
@@ -18,13 +19,14 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from . import imaging, library
 from .scanner import (
+    SYSFS_USB,
     Capabilities,
     Device,
     ScanArea,
     ScanCancelled,
     ScanError,
     ScanProcess,
-    find_device,
+    find_devices,
     query_capabilities,
 )
 
@@ -177,34 +179,72 @@ class Job:
         }
 
 
+# The scanner chosen in the UI when more than one is connected, kept with the scans.
+CHOICE_FILE = ".scanner.json"
+
+
 class ScannerService:
-    def __init__(self, output: Path, scanimage: str = "scanimage", device: str | None = None):
+    def __init__(self, output: Path, scanimage: str = "scanimage", device: str | None = None, sysfs: Path = SYSFS_USB):
         self.output = output
         self.scanimage = scanimage
         self.device_override = device
-        self.capabilities = Capabilities()
-        self._caps_device: str | None = None
+        self.sysfs = sysfs
+        self.capabilities = Capabilities()  # of the scanner in use
+        self._caps: dict[str, Capabilities] = {}  # by Device.key, once asked
         self._lock = threading.Lock()
         self._job: Job | None = None
         self._ids = itertools.count(1)
-        self._device: Device | None = None
-        self._device_checked = -math.inf
+        self._devices: list[Device] = []
+        self._devices_checked = -math.inf
+        self.chosen = self._load_choice()  # Device.key of the scanner chosen in the UI, if any
         self._preview: np.ndarray | None = None
         self._preview_version = 0
         self._instance = secrets.token_hex(4)  # lets the UI tell server restarts apart
 
     # --- queries -------------------------------------------------------------
 
-    def device(self, refresh: bool = False) -> Device | None:
+    def devices(self, refresh: bool = False) -> list[Device]:
+        """The connected scanners (just the --device one, if that was given)."""
         if self.device_override:
-            return Device(self.device_override, "Scanner")
+            return [Device(self.device_override, "Scanner")]
         now = time.monotonic()
-        if refresh or now - self._device_checked > 2.0:
-            self._device = find_device()
-            self._device_checked = now
-        return self._device
+        if refresh or now - self._devices_checked > 2.0:
+            self._devices = find_devices(self.sysfs)
+            self._devices_checked = now
+        return self._devices
+
+    def device(self, refresh: bool = False) -> Device | None:
+        """The scanner in use: the chosen one if it's connected, otherwise the first one found."""
+        devices = self.devices(refresh)
+        device = next((d for d in devices if d.key == self.chosen), devices[0] if devices else None)
+        if device is not None:
+            self.capabilities = self._caps.get(device.key, Capabilities())
+        return device
+
+    def choose(self, key: str) -> Device:
+        """Use the scanner with this Device.key from now on, also after a restart."""
+        if self._job is not None and self._job.state == "running":
+            raise Busy("Wait for the current preview or scan to finish before changing the scanner.")
+        device = next((d for d in self.devices(refresh=True) if d.key == key), None)
+        if device is None:
+            raise ValueError("That scanner isn't connected any more. Check that it's plugged in and switched on.")
+        self.chosen = key
+        try:
+            (self.output / CHOICE_FILE).write_text(json.dumps({"scanner": key}) + "\n", encoding="utf-8")
+        except OSError as exc:
+            log.warning("Couldn't remember the chosen scanner (%s); it's used until Sprocket stops", exc)
+        log.info("Using %s on USB port %s", device.model, device.port)
+        return device
+
+    def _load_choice(self) -> str | None:
+        try:
+            key = json.loads((self.output / CHOICE_FILE).read_text(encoding="utf-8")).get("scanner")
+        except (OSError, ValueError, AttributeError):
+            return None
+        return key if isinstance(key, str) else None
 
     def status(self) -> dict:
+        devices = self.devices()
         device = self.device()
         caps = self.capabilities
         job = self._job
@@ -213,7 +253,13 @@ class ScannerService:
                 "connected": device is not None,
                 "device": device.name if device else None,
                 "model": device.model if device else None,
+                "key": device.key if device else None,
             },
+            # Every connected scanner, to choose from; `chosen` is the one picked in the UI,
+            # which may not be connected right now.
+            "scanners": [{"key": d.key, "model": d.model, "port": d.port} for d in devices],
+            "chosen": self.chosen,
+            "choosable": not self.device_override,
             "capabilities": {
                 "resolutions": list(caps.resolutions),
                 "width_mm": caps.width_mm,
@@ -390,16 +436,15 @@ class ScannerService:
         }
 
     def _refresh_capabilities(self) -> None:
-        """Ask the scanner what it supports, once per device (cheap: under a second)."""
+        """Ask the scanner what it supports, once per scanner (cheap: under a second)."""
         device = self.device(refresh=True)
-        if device is None or device.name == self._caps_device:
+        if device is None or device.key in self._caps:
             return
-        self._caps_device = device.name
         try:
             caps = query_capabilities(self.scanimage, device.name)
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
             log.warning("Couldn't read the scanner's options (%s); assuming an OpticFilm 8100", exc)
-            return
-        if caps != self.capabilities:
-            log.info("Scanner options: %s", caps)
-        self.capabilities = caps
+            caps = Capabilities()
+        else:
+            log.info("%s options: %s", device.model, caps)
+        self._caps[device.key] = self.capabilities = caps
