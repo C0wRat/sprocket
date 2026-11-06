@@ -318,6 +318,8 @@ h2 {
   font-size: 14px;
 }
 .field-row { display: flex; gap: 10px; margin-top: 16px; }
+.scanner-field { margin-bottom: 16px; }
+#scanner-hint { margin: -10px 0 14px; }
 .grow { flex: 1; min-width: 0; }
 .frame-field { width: 84px; flex: none; }
 .check { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; cursor: pointer; }

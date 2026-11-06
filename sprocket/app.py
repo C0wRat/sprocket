@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from . import imaging, library
 from .service import Adjustments, Busy, FilmType, LockedLevels, NotConnected, ScannerService, ScanRequest
@@ -48,6 +49,12 @@ def create_app(service: ScannerService) -> FastAPI:
     @app.get("/api/status")
     def status() -> dict:
         return service.status()
+
+    @app.put("/api/scanner")
+    def choose_scanner(choice: ScannerChoice) -> dict:
+        """Use another of the connected scanners (a `key` from the status's `scanners`)."""
+        device = service.choose(choice.key)
+        return {"key": device.key, "model": device.model, "port": device.port}
 
     @app.post("/api/preview", status_code=202)
     def preview() -> dict:
@@ -103,6 +110,10 @@ def create_app(service: ScannerService) -> FastAPI:
         return FileResponse(target)
 
     return app
+
+
+class ScannerChoice(BaseModel):
+    key: str
 
 
 def _parse_crop(text: str | None) -> tuple[float, float, float, float] | None:

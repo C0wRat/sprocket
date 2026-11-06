@@ -31,8 +31,13 @@ Then open <http://localhost:8800>. Useful options:
 | `--output DIR` | where to save scans (default `~/Pictures/Sprocket`) |
 | `--port N` | listen on another port (default 8800) |
 | `--host 0.0.0.0` | let other devices on your network use it, e.g. a tablet next to the scanner. There is no login, so only do this on a network you trust. |
-| `--device NAME` | use this SANE device instead of auto-detecting |
+| `--device NAME` | use this SANE device instead of auto-detecting (and choosing in the page) |
 | `--debug` | log more detail, including everything `scanimage` prints |
+
+With more than one OpticFilm connected, a **Scanner** menu appears above the resolution.
+Sprocket remembers the choice by model and USB port, so it survives unplugging and
+restarts as long as the scanner goes back into the same port. If the chosen scanner
+isn't connected, the other one is used and the page says so.
 
 ## Scanning a roll
 
@@ -77,6 +82,7 @@ press **Lock colours** on a typical frame (see below).
   so "København" is written as "Kobenhavn" there; file and folder names keep it as typed.
   Colour JPEGs carry an sRGB profile, so colour-managed programs show them as intended.
 - Existing files are never overwritten; a repeat scan of a frame is saved as `…-03-2.jpg`.
+- With several scanners, the one chosen in the page is kept in `~/Pictures/Sprocket/.scanner.json`.
 
 Measured with the OpticFilm 8100 and sane-backends 1.2.1:
 
