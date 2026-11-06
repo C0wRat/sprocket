@@ -491,6 +491,14 @@ async function toggleLock() {
   renderPreview();
 }
 
+// Turn the picture by a multiple of 90°: clockwise if positive. The button and the R key both use this.
+function rotateBy(degrees) {
+  settings.rotate = (((settings.rotate + degrees) % 360) + 360) % 360;
+  saveSettings();
+  renderCropInfo();
+  renderPreview(); // the crop box is redrawn once the rotated image arrives
+}
+
 // The button and the M key both go through here, so the button always shows the state.
 function toggleMirror() {
   settings.mirror = !settings.mirror;
@@ -540,12 +548,7 @@ function bindControls() {
     input.addEventListener('dblclick', () => setSliders({ [name]: 0 }));
   }
   el.adjustReset.addEventListener('click', () => setSliders(Object.fromEntries(SLIDERS.map((name) => [name, 0]))));
-  el.rotate.addEventListener('click', () => {
-    settings.rotate = (settings.rotate + 90) % 360;
-    saveSettings();
-    renderCropInfo();
-    renderPreview(); // the crop box is redrawn once the rotated image arrives
-  });
+  el.rotate.addEventListener('click', () => rotateBy(90));
   el.mirror.addEventListener('click', toggleMirror);
   el.cropReset.addEventListener('click', () => {
     settings.crop = null;
@@ -602,6 +605,7 @@ function bindControls() {
     if (key === 'p') startJob('preview');
     else if (key === 's') startJob('scan');
     else if (key === 'm') toggleMirror();
+    else if (key === 'r') rotateBy(event.shiftKey ? -90 : 90);
     else return;
     event.preventDefault();
   });
