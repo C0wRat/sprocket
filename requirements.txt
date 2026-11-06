@@ -1,5 +1,5 @@
 fastapi>=0.162.0
-uvicorn>=0.29
+uvicorn>=0.54.0
 numpy>=1.26
 pillow>=10.1
 tifffile>=2023.7.10
