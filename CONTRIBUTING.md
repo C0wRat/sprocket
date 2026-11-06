@@ -50,7 +50,11 @@ lets you try the error paths (see the top of `fake_scanimage.py`).
 
 ## Tests and checks
 
-Run all of these before you push. A PR should pass every one.
+Run all of these before you push. A PR should pass every one. GitHub Actions
+(`.github/workflows/ci.yml`) runs the same checks on every pull request and push to
+`main`, on Python 3.10 and the newest Python. Only merge a PR once they pass.
+Another check makes sure the PR title is a Conventional Commit (see
+[Pull requests](#pull-requests)).
 
 ```sh
 .venv/bin/ruff check .                  # lint
