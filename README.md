@@ -1,5 +1,7 @@
 # Sprocket
 
+[![CI](https://github.com/C0wRat/sprocket/actions/workflows/ci.yml/badge.svg)](https://github.com/C0wRat/sprocket/actions/workflows/ci.yml)
+
 A small web app for scanning 35 mm film with a **Plustek OpticFilm 8100** on Linux.
 Preview a frame, drag to crop, pick the film type, and scan. You get a finished
 JPEG plus the untouched 16-bit scan as a TIFF.
@@ -38,10 +40,12 @@ Then open <http://localhost:8800>. Useful options:
 2. Choose the film type: **Color neg**, **Slide** or **B&W neg**.
 3. Press **Preview** (or the P key). It takes about 18 seconds.
 4. Drag on the preview to crop out the holder's edges, and drag the box to move it.
-   Use **Rotate** and **Mirror** if the picture is the wrong way round or backwards.
+   Use **Rotate** and **Mirror** (or the M key) if the picture is the wrong way round
+   or backwards. The R key rotates 90° clockwise, and Shift+R anticlockwise.
 5. Fine-tune the picture with the **Adjust** sliders: Brightness, Contrast, Saturation,
    Warmth (bluer to more orange) and Tint (greener to more magenta). The preview updates
-   right away without scanning again. Double-click a slider to set it back to 0.
+   right away without scanning again. Double-click a slider to set it back to 0, or type
+   an exact value in the box next to it (Esc goes back to the value before).
    The histogram above the sliders shows the picture inside the crop, with the share
    of pixels clipped to pure black or white; it turns orange above 1 %. Holder edges
    left inside the crop show up there as clipping.

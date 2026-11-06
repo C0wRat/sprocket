@@ -1,4 +1,4 @@
-import { clamp, mapRect, toDisplay, toScanner } from './geometry.js';
+import { clamp, mapRect, migrateOrientation, toDisplay, toScanner } from './geometry.js';
 import { computeHistogram, drawHistogram } from './histogram.js';
 
 const $ = (id) => document.getElementById(id);
@@ -30,6 +30,8 @@ const sliders = Object.fromEntries(SLIDERS.map((name) => [name, { input: $(name)
 const DEFAULTS = {
   film: 'color-negative', brightness: 0, contrast: 0, saturation: 0, warmth: 0, tint: 0,
   rotate: 0, mirror: false, crop: null,
+  // How rotate and mirror combine: 2 = rotate, then mirror (see geometry.js).
+  orientation: 2,
   // Locked colours: the levels of one frame, { film, roll, low: [r, g, b], high: [r, g, b] }.
   lock: null,
   resolution: 3600, roll: 'roll-01', frame: 1, saveJpeg: true, saveTiff: true, sharpen: 'off',
@@ -60,6 +62,8 @@ function loadSettings() {
     s[name] = clamp(Math.round(s[name]), -100, 100);
   }
   if (![0, 90, 180, 270].includes(s.rotate)) s.rotate = 0;
+  s.mirror = s.mirror === true;
+  if (saved.orientation !== 2) Object.assign(s, migrateOrientation(s), { orientation: 2 });
   if (!isValidCrop(s.crop)) s.crop = null;
   if (!isValidLock(s.lock)) s.lock = null;
   if (!SHARPEN.includes(s.sharpen)) s.sharpen = DEFAULTS.sharpen;
@@ -424,20 +428,25 @@ function adjustments() {
   return { film: settings.film, ...Object.fromEntries(SLIDERS.map((name) => [name, settings[name]])) };
 }
 
-const signed = (v) => (v > 0 ? `+${v}` : String(v));
+// A typed slider value: a whole number from -100 to 100, or null if it isn't a number yet.
+function sliderValue(text) {
+  const n = Number.parseFloat(text);
+  return Number.isFinite(n) ? clamp(Math.round(n), -100, 100) : null;
+}
 
 function renderSliders() {
   const mono = settings.film === 'bw-negative';
   for (const name of SLIDERS) {
     const { input, out } = sliders[name];
     input.value = settings[name];
-    out.value = signed(settings[name]);
-    input.disabled = mono && COLOUR_SLIDERS.includes(name);
+    // Leave the number alone while it's being typed, so "-" or "" isn't replaced mid-edit.
+    if (document.activeElement !== out) out.value = settings[name];
+    input.disabled = out.disabled = mono && COLOUR_SLIDERS.includes(name);
   }
   el.adjustReset.hidden = SLIDERS.every((name) => settings[name] === 0);
   el.adjustHint.textContent = mono
     ? 'Saturation, Warmth and Tint are for colour film.'
-    : 'Double-click a slider to set it back to 0.';
+    : 'Double-click a slider to set it back to 0, or type a value.';
 }
 
 function setSliders(values) {
@@ -445,6 +454,33 @@ function setSliders(values) {
   saveSettings();
   renderSliders();
   schedulePreview();
+}
+
+// The number next to a slider can be typed in. The preview follows while typing; Enter
+// or leaving the field tidies the number up, and Esc goes back to the value from before.
+function bindSliderNumber(name) {
+  const { out } = sliders[name];
+  let before = 0;
+  out.addEventListener('focus', () => { before = settings[name]; });
+  out.addEventListener('input', () => {
+    const value = sliderValue(out.value);
+    if (value !== null && value !== settings[name]) setSliders({ [name]: value });
+  });
+  out.addEventListener('change', () => {
+    setSliders({ [name]: sliderValue(out.value) ?? settings[name] });
+    out.value = before = settings[name];
+  });
+  out.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      setSliders({ [name]: before });
+      out.value = before;
+      out.select();
+      event.preventDefault();
+    } else if (event.key === 'Enter') {
+      out.value = before = settings[name];
+      out.select();
+    }
+  });
 }
 
 let locking = false; // a lock request is on its way
@@ -502,6 +538,26 @@ async function toggleLock() {
   renderPreview();
 }
 
+// Turn the picture by a multiple of 90°: clockwise if positive. The button and the R key both use this.
+function rotateBy(degrees) {
+  settings.rotate = (((settings.rotate + degrees) % 360) + 360) % 360;
+  saveSettings();
+  renderCropInfo();
+  renderPreview(); // the crop box is redrawn once the rotated image arrives
+}
+
+// The button and the M key both go through here, so the button always shows the state.
+function toggleMirror() {
+  settings.mirror = !settings.mirror;
+  renderMirror();
+  saveSettings();
+  renderPreview();
+}
+
+function renderMirror() {
+  el.mirror.setAttribute('aria-pressed', String(settings.mirror));
+}
+
 function renderSharpen() {
   for (const b of el.sharpen.querySelectorAll('button')) {
     b.setAttribute('aria-checked', String(b.dataset.value === settings.sharpen));
@@ -512,7 +568,7 @@ function renderSharpen() {
 function renderControls() {
   renderFilm();
   renderLock();
-  el.mirror.setAttribute('aria-pressed', String(settings.mirror));
+  renderMirror();
   el.roll.value = settings.roll;
   el.frameNo.value = settings.frame;
   el.saveJpeg.checked = settings.saveJpeg;
@@ -537,20 +593,11 @@ function bindControls() {
     const { input } = sliders[name];
     input.addEventListener('input', () => setSliders({ [name]: Number(input.value) }));
     input.addEventListener('dblclick', () => setSliders({ [name]: 0 }));
+    bindSliderNumber(name);
   }
   el.adjustReset.addEventListener('click', () => setSliders(Object.fromEntries(SLIDERS.map((name) => [name, 0]))));
-  el.rotate.addEventListener('click', () => {
-    settings.rotate = (settings.rotate + 90) % 360;
-    saveSettings();
-    renderCropInfo();
-    renderPreview(); // the crop box is redrawn once the rotated image arrives
-  });
-  el.mirror.addEventListener('click', () => {
-    settings.mirror = !settings.mirror;
-    el.mirror.setAttribute('aria-pressed', String(settings.mirror));
-    saveSettings();
-    renderPreview();
-  });
+  el.rotate.addEventListener('click', () => rotateBy(90));
+  el.mirror.addEventListener('click', toggleMirror);
   el.cropReset.addEventListener('click', () => {
     settings.crop = null;
     saveSettings();
@@ -605,6 +652,8 @@ function bindControls() {
     const key = event.key.toLowerCase();
     if (key === 'p') startJob('preview');
     else if (key === 's') startJob('scan');
+    else if (key === 'm') toggleMirror();
+    else if (key === 'r') rotateBy(event.shiftKey ? -90 : 90);
     else return;
     event.preventDefault();
   });
