@@ -150,6 +150,7 @@ h2 {
 }
 .zoombar button:hover:not(:disabled) { background: var(--raised-hover); }
 .zoombar button:disabled { opacity: .4; cursor: default; }
+.zoombar button.toggle[aria-pressed="true"] { background: var(--raised-hover); color: var(--accent); font-weight: 600; }
 .zoombar output { min-width: 44px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
 .crop {
   position: absolute;

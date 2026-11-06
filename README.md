@@ -46,6 +46,9 @@ Then open <http://localhost:8800>. Useful options:
    move around. The buttons at the top right, or the keys **+** and **−**, zoom in and
    out; **0** fits the whole frame and **1** shows one preview pixel per screen pixel.
    The preview is 600 dpi, so it looks soft close up; the scan itself is sharper.
+   **Crop** (or the C key) zooms to just the cropped part, to check the framing without
+   the holder's edges, and keeps following it after Rotate or Mirror. Press it again
+   for the whole frame; dragging the crop or zooming by hand also turns it off.
 5. Fine-tune the picture with the **Adjust** sliders: Brightness, Contrast, Saturation,
    Warmth (bluer to more orange) and Tint (greener to more magenta). The preview updates
    right away without scanning again. Double-click a slider to set it back to 0.
