@@ -599,6 +599,8 @@ h2 {
   font-size: 14px;
 }
 .field-row { display: flex; gap: 10px; margin-top: 16px; }
+.scanner-field { margin-bottom: 16px; }
+#scanner-hint { margin: -10px 0 14px; }
 .resolution-head { display: flex; justify-content: space-between; }
 .field.resolution input { padding: 0; border: 0; border-radius: 0; background: transparent; }
 .resolution-head output { color: var(--text); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }

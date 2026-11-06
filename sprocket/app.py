@@ -60,6 +60,12 @@ def create_app(service: ScannerService) -> FastAPI:
     def status() -> dict:
         return service.status()
 
+    @app.put("/api/scanner")
+    def choose_scanner(choice: ScannerChoice) -> dict:
+        """Use another of the connected scanners (a `key` from the status's `scanners`)."""
+        device = service.choose(choice.key)
+        return {"key": device.key, "model": device.model, "port": device.port}
+
     @app.post("/api/preview", status_code=202)
     def preview() -> dict:
         return service.start_preview().to_dict()
@@ -136,6 +142,10 @@ def create_app(service: ScannerService) -> FastAPI:
 
 class PresetRename(BaseModel):
     name: str
+
+
+class ScannerChoice(BaseModel):
+    key: str
 
 
 def _parse_crop(text: str | None) -> tuple[float, float, float, float] | None:

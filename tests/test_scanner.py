@@ -11,6 +11,7 @@ from sprocket.scanner import (
     ScanError,
     ScanProcess,
     find_device,
+    find_devices,
     query_capabilities,
 )
 
@@ -89,4 +90,18 @@ def test_find_device(tmp_path):
     assert device.name == "genesys:libusb:001:010"
     assert device.model == "Plustek OpticFilm 8100"
     assert device.make == "Plustek"
+    assert device.port == "1-5"
+    assert device.key == "Plustek OpticFilm 8100@1-5"
     assert find_device(tmp_path / "missing") is None
+
+
+def test_find_devices_finds_every_scanner(sysfs, plug_in):
+    plug_in("3-1.2", "130d", devnum=7)
+    plug_in("1-5", devnum=10)
+    (sysfs / "1-5:1.0").mkdir()  # a USB interface, not a device
+    devices = find_devices(sysfs)
+    assert [(d.model, d.port, d.name) for d in devices] == [
+        ("Plustek OpticFilm 8100", "1-5", "genesys:libusb:001:010"),
+        ("Plustek OpticFilm 8200i", "3-1.2", "genesys:libusb:003:007"),
+    ]
+    assert find_devices(sysfs / "missing") == []

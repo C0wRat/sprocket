@@ -26,6 +26,7 @@ const el = {
   lightboxPrev: $('lightbox-prev'), lightboxNext: $('lightbox-next'),
   zoombar: $('zoombar'), zoomLevel: $('zoom-level'), zoomIn: $('zoom-in'), zoomOut: $('zoom-out'),
   zoomFit: $('zoom-fit'), zoom100: $('zoom-100'), zoomCrop: $('zoom-crop'),
+  scannerField: $('scanner-field'), scanner: $('scanner'), scannerHint: $('scanner-hint'),
 };
 
 const FILMS = ['color-negative', 'slide', 'bw-negative'];
@@ -180,6 +181,7 @@ function applyStatus(s) {
   else setPill('err', 'Scanner not found. Check the USB cable and that it’s switched on.');
   el.btnPreview.disabled = el.btnScan.disabled = running || !s.scanner.connected;
 
+  renderScanners(s, running);
   renderJob(job);
   if (s.preview.id && s.preview.id !== shownPreview) {
     shownPreview = s.preview.id;
@@ -187,6 +189,40 @@ function applyStatus(s) {
     renderLock();
   }
   follow(job);
+}
+
+// --- Choosing a scanner, when more than one is connected ----------------------------
+
+let shownScanners = '';
+const shortModel = (model) => model.replace(/^Plustek /, '');
+
+function renderScanners(s, running) {
+  const { scanners, chosen } = s;
+  const chosenMissing = Boolean(chosen) && !scanners.some((d) => d.key === chosen);
+  el.scannerField.hidden = !s.choosable || (scanners.length < 2 && !chosenMissing);
+  el.scanner.disabled = running || scanners.length < 2;
+  // Rebuild the list only when it changes, so polling doesn't close it while it's open.
+  const key = scanners.map((d) => d.key).join('|');
+  if (key !== shownScanners) {
+    shownScanners = key;
+    el.scanner.replaceChildren(...scanners.map((d) => new Option(`${shortModel(d.model)} · USB port ${d.port}`, d.key)));
+  }
+  if (s.scanner.key) el.scanner.value = s.scanner.key;
+  el.scannerHint.hidden = !chosenMissing || !s.scanner.connected;
+  if (chosenMissing && s.scanner.connected) {
+    const [model, port] = chosen.split('@');
+    el.scannerHint.textContent = `The ${shortModel(model)} on USB port ${port} isn’t connected, so the ${shortModel(s.scanner.model)} is used.`;
+  }
+}
+
+async function chooseScanner() {
+  try {
+    const device = await api('/api/scanner', { method: 'PUT', body: JSON.stringify({ key: el.scanner.value }) });
+    showToast(`Using the ${shortModel(device.model)} on USB port ${device.port}. Press Preview to see its frame.`);
+  } catch (err) {
+    showAlert(err.message);
+  }
+  poll();
 }
 
 function setPill(tone, text) {
@@ -977,6 +1013,7 @@ function bindControls() {
   el.theme.addEventListener('change', () => setTheme(el.theme.value));
   prefersLight.addEventListener('change', () => applyTheme(el.theme.value));
 
+  el.scanner.addEventListener('change', chooseScanner);
   el.btnPreview.addEventListener('click', () => startJob('preview'));
   el.btnScan.addEventListener('click', () => startJob('scan'));
   el.cancel.addEventListener('click', cancelJob);
