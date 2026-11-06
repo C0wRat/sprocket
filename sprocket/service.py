@@ -80,7 +80,7 @@ class LockedLevels(BaseModel):
 
     @model_validator(mode="after")
     def _check_order(self) -> "LockedLevels":
-        if any(lo > hi for lo, hi in zip(self.low, self.high)):
+        if any(lo > hi for lo, hi in zip(self.low, self.high, strict=True)):
             raise ValueError("each low level must not be above its high level")
         return self
 
