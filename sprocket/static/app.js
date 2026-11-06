@@ -1,6 +1,6 @@
 import { clamp, mapRect, migrateOrientation, toDisplay, toScanner } from './geometry.js';
 import { computeHistogram, drawHistogram } from './histogram.js';
-import { MAX_SCALE, STEP, clampView, fitScale, fitView, isZoomed, layout, pan, zoomAt } from './zoom.js';
+import { MAX_SCALE, STEP, clampView, cropView, fitScale, fitView, isZoomed, layout, pan, zoomAt } from './zoom.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -23,7 +23,7 @@ const el = {
   lightboxNote: $('lightbox-note'), lightboxClose: $('lightbox-close'),
   lightboxPrev: $('lightbox-prev'), lightboxNext: $('lightbox-next'),
   zoombar: $('zoombar'), zoomLevel: $('zoom-level'), zoomIn: $('zoom-in'), zoomOut: $('zoom-out'),
-  zoomFit: $('zoom-fit'), zoom100: $('zoom-100'),
+  zoomFit: $('zoom-fit'), zoom100: $('zoom-100'), zoomCrop: $('zoom-crop'),
 };
 
 const FILMS = ['color-negative', 'slide', 'bw-negative'];
@@ -37,6 +37,7 @@ const sliders = Object.fromEntries(SLIDERS.map((name) => [name, { input: $(name)
 const DEFAULTS = {
   film: 'color-negative', brightness: 0, contrast: 0, saturation: 0, warmth: 0, tint: 0,
   rotate: 0, mirror: false, crop: null,
+  zoomCrop: false, // the preview follows the crop (zoom to crop)
   // How rotate and mirror combine: 2 = rotate, then mirror (see geometry.js).
   orientation: 2,
   // Locked colours: the levels of one frame, { film, roll, low: [r, g, b], high: [r, g, b] }.
@@ -79,6 +80,7 @@ function loadSettings() {
   s.mirror = s.mirror === true;
   if (saved.orientation !== 2) Object.assign(s, migrateOrientation(s), { orientation: 2 });
   if (!isValidCrop(s.crop)) s.crop = null;
+  s.zoomCrop = s.zoomCrop === true && Boolean(s.crop);
   if (!isValidLock(s.lock)) s.lock = null;
   if (!SHARPEN.includes(s.sharpen)) s.sharpen = DEFAULTS.sharpen;
   return s;
@@ -340,7 +342,14 @@ function stageBoxes() {
 function fitFrame() {
   if (!previewSize) return;
   const { stage, avail } = stageBoxes();
-  if (view) view = clampView(view, previewSize, avail, stage);
+  if (settings.zoomCrop && !settings.crop) {
+    settings.zoomCrop = false; // the crop was reset: back to the whole frame
+    saveSettings();
+    view = null;
+  }
+  // Zoom to crop follows the crop, rotation, mirror and the size of the stage.
+  if (settings.zoomCrop) view = cropView(displayCrop(), previewSize, avail, stage);
+  else if (view) view = clampView(view, previewSize, avail, stage);
   const box = layout(view ?? fitView(previewSize, avail), previewSize, stage);
   Object.assign(el.frame.style, {
     width: `${Math.max(1, box.w)}px`, height: `${Math.max(1, box.h)}px`, left: `${box.left}px`, top: `${box.top}px`,
@@ -349,6 +358,7 @@ function fitFrame() {
 }
 
 function setView(next) {
+  stopFollowingCrop();
   const { avail } = stageBoxes();
   view = isZoomed(next, previewSize, avail) ? next : null; // back to following the stage size
   fitFrame();
@@ -380,7 +390,27 @@ function zoomFit() {
   if (previewSize) setView(fitView(previewSize, stageBoxes().avail));
 }
 
+// Zoom to crop: the button and the C key both come here, so the button shows the state.
+function setZoomCrop(on) {
+  settings.zoomCrop = on && Boolean(settings.crop);
+  saveSettings();
+  if (!settings.zoomCrop) view = null; // back to the whole frame
+  fitFrame();
+  renderZoom();
+}
+
+// Zooming or moving by hand, or editing the crop, takes over from following the crop,
+// starting from the view as it is.
+function stopFollowingCrop() {
+  if (!settings.zoomCrop) return;
+  settings.zoomCrop = false;
+  saveSettings();
+  renderZoom();
+}
+
 function renderZoom() {
+  el.zoomCrop.setAttribute('aria-pressed', String(settings.zoomCrop));
+  el.zoomCrop.disabled = !settings.crop;
   if (!previewSize) return;
   const scale = currentScale();
   const fit = fitScale(previewSize, stageBoxes().avail);
@@ -485,6 +515,7 @@ function bindZoom() {
   el.zoomOut.addEventListener('click', () => zoomBy(1 / STEP));
   el.zoomFit.addEventListener('click', zoomFit);
   el.zoom100.addEventListener('click', () => zoomTo(1));
+  el.zoomCrop.addEventListener('click', () => setZoomCrop(!settings.zoomCrop));
 }
 
 // --- Crop ------------------------------------------------------------------------
@@ -535,6 +566,7 @@ function dragRect(d, [x, y]) {
 
 el.frame.addEventListener('pointerdown', (event) => {
   if (event.button !== 0 || spaceHeld || pinch) return; // panning or pinching instead
+  stopFollowingCrop();
   const p = pointerPosition(event);
   const current = displayCrop();
   drag = current && inside(p, current) ? { mode: 'move', start: p, origin: current } : { mode: 'draw', start: p };
@@ -866,6 +898,7 @@ function bindControls() {
     else if (key === '-') zoomBy(1 / STEP);
     else if (key === '0') zoomFit();
     else if (key === '1') zoomTo(1);
+    else if (key === 'c') setZoomCrop(!settings.zoomCrop);
     else return;
     event.preventDefault();
   });

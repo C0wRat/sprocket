@@ -61,5 +61,15 @@ export function pan(view, dx, dy, image, avail, stage) {
   return clampView({ ...view, cx: view.cx - dx / w, cy: view.cy - dy / h }, image, avail, stage);
 }
 
+// The view that fills the room for the picture with `rect` (fractions of the picture,
+// as drawn), centred on it. Near an edge of the picture it shifts to keep the stage
+// covered, which still shows all of the rectangle.
+export function cropView(rect, image, avail, stage) {
+  const w = Math.max(1e-6, (rect.x1 - rect.x0) * image.w);
+  const h = Math.max(1e-6, (rect.y1 - rect.y0) * image.h);
+  const view = { scale: Math.min(avail.w / w, avail.h / h), cx: (rect.x0 + rect.x1) / 2, cy: (rect.y0 + rect.y1) / 2 };
+  return clampView(view, image, avail, stage);
+}
+
 // Is the view zoomed in beyond fitting the whole picture?
 export const isZoomed = (view, image, avail) => view.scale > fitScale(image, avail) * 1.001;
