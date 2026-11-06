@@ -16,10 +16,11 @@ ORIENTATIONS = [
     (90, False, (0.9, 0.2)),
     (180, False, (0.8, 0.9)),
     (270, False, (0.1, 0.8)),
+    # Mirror flips left-right on screen, after rotating: only x changes.
     (0, True, (0.8, 0.1)),
-    (90, True, (0.9, 0.8)),
+    (90, True, (0.1, 0.2)),
     (180, True, (0.2, 0.9)),
-    (270, True, (0.1, 0.2)),
+    (270, True, (0.9, 0.8)),
 ]
 
 
@@ -31,6 +32,13 @@ def test_orient_matches_the_ui(rotate, mirror, expected):
     y, x = np.argwhere(out == 255)[0]
     assert (x + 0.5) / out.shape[1] == pytest.approx(expected[0], abs=0.01)
     assert (y + 0.5) / out.shape[0] == pytest.approx(expected[1], abs=0.01)
+
+
+@pytest.mark.parametrize("rotate", [0, 90, 180, 270])
+def test_mirror_flips_left_right_as_shown(rotate):
+    image = np.arange(6 * 4 * 3, dtype=np.uint16).reshape(6, 4, 3)
+    rotated = orient(image, rotate)
+    np.testing.assert_array_equal(orient(image, rotate, mirror=True), rotated[:, ::-1])
 
 
 def negative(width=400, height=20):
