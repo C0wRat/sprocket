@@ -132,9 +132,13 @@ roll name changes.
 
 ```sh
 .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/ruff check . && .venv/bin/ruff format --check .
 .venv/bin/python -m pytest              # uses a fake scanimage, no scanner needed
 node --test tests/*.test.mjs            # crop maths and histogram in the browser code
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for code style, how to run the app without a
+scanner, and how to name branches, write commits and open a pull request.
 
 | File | Purpose |
 | --- | --- |
