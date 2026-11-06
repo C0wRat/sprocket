@@ -44,7 +44,7 @@ const SHARPEN = ['off', 'low', 'medium', 'high'];
 // The colour theme is remembered on its own, so it applies before the settings load
 // (see the script at the top of index.html). "system" follows the computer's setting.
 const THEME_KEY = 'sprocket.theme';
-const THEMES = ['system', 'light', 'dark'];
+const THEMES = ['system', 'light', 'dark', 'dracula', 'contrast', 'retro'];
 const prefersLight = matchMedia('(prefers-color-scheme: light)');
 
 const settings = loadSettings();

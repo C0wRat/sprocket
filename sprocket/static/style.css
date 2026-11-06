@@ -57,6 +57,9 @@
   --strip-hole: #0d0d0d;
   --radius: 8px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
+  /* Numbers and status read-outs: the scanner status, sizes, slider values. */
+  --font-readout: var(--font);
+  --focus-width: 2px;
 }
 
 :root[data-theme="light"] {
@@ -86,6 +89,123 @@
   --hist-bg: #1a1a1a;
 }
 
+/* Dracula (draculatheme.com, MIT licence), with a neutral stage. */
+:root[data-theme="dracula"] {
+  color-scheme: dark;
+  --bg: #21222c;
+  --bg-stage: #111;
+  --panel: #282a36;
+  --raised: #343746;
+  --raised-hover: #44475a;
+  --field: #1e1f29;
+  --line: #343746;
+  --line-strong: #4f5269;
+  --text: #f8f8f2;
+  --muted: #c3c6dc;
+  --faint: #9ba3cf;
+  --accent: #bd93f9;
+  --accent-hover: #d0b1fb;
+  --accent-ink: #21222c;
+  --ok: #50fa7b;
+  --err: #ff6e6e;
+  --err-bg: #3d2530;
+  --err-line: #7a3346;
+  --err-text: #ffd9d9;
+  --float-bg: rgba(40, 42, 54, .95);
+  --toast-bg: rgba(52, 55, 70, .97);
+  --cool: #8be9fd;
+  --warm: #ffb86c;
+  --green: #50fa7b;
+  --magenta: #ff79c6;
+  --hist-bg: #191a21;
+}
+
+/* High contrast: WCAG AAA (7:1) for all text, solid lines and thick focus rings. */
+:root[data-theme="contrast"] {
+  color-scheme: dark;
+  --bg: #000;
+  --bg-stage: #000;
+  --panel: #000;
+  --raised: #1a1a1a;
+  --raised-hover: #333;
+  --field: #000;
+  --line: #9a9a9a;
+  --line-strong: #e0e0e0;
+  --text: #fff;
+  --muted: #ececec;
+  --faint: #d6d6d6;
+  --accent: #ffd60a;
+  --accent-hover: #ffe55c;
+  --accent-ink: #000;
+  --ok: #5dff9a;
+  --err: #ff9b9b;
+  --err-bg: #000;
+  --err-line: #ff9b9b;
+  --err-text: #fff;
+  --float-bg: #000;
+  --toast-bg: #000;
+  --float-shadow: rgba(0, 0, 0, 0);
+  --crop-dim: rgba(0, 0, 0, .7);
+  --crop-label-bg: #000;
+  --hist-bg: #000;
+  --focus-width: 3px;
+}
+[data-theme="contrast"] :focus-visible { outline-offset: 3px; box-shadow: 0 0 0 6px var(--bg); }
+[data-theme="contrast"] .segmented button[aria-checked="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+[data-theme="contrast"] .btn.toggle[aria-pressed="true"] { border-width: 2px; }
+[data-theme="contrast"] .jobbar, [data-theme="contrast"] .toast { border: 2px solid var(--line-strong); }
+[data-theme="contrast"] .link, [data-theme="contrast"] .scan-files a { text-decoration: underline; }
+
+/* Retro film scanner: putty-coloured panels like a 1990s lab workstation, monospace
+   read-outs and a green status display. Sprocket's own design, not any product's. */
+:root[data-theme="retro"] {
+  color-scheme: light;
+  --bg: #cfc8b4;
+  --bg-stage: #262626;
+  --panel: #e2dbc8;
+  --raised: #ece6d4;
+  --raised-hover: #f5f0e2;
+  --field: #f6f2e6;
+  --line: #b7ae97;
+  --line-strong: #8f866f;
+  --text: #24211a;
+  --muted: #4a4537;
+  --faint: #524c3e;
+  --accent: #8a4a00;
+  --accent-hover: #a35a05;
+  --accent-ink: #fff8e6;
+  --ok: #2e7d32;
+  --err: #a32020;
+  --err-bg: #f3dcd2;
+  --err-line: #c99a8a;
+  --err-text: #4d1010;
+  --float-bg: rgba(226, 219, 200, .97);
+  --toast-bg: rgba(236, 230, 212, .98);
+  --float-shadow: rgba(40, 32, 16, .35);
+  --hist-bg: #141a14;
+  --hist-r: rgb(255, 120, 90);
+  --hist-g: rgb(110, 240, 140);
+  --hist-b: rgb(110, 160, 255);
+  --hist-grey: rgb(150, 245, 170);
+  --readout-bg: #141a14;
+  --readout-text: #8cf5a4;
+  --bevel: rgba(40, 32, 16, .18);
+  --radius: 3px;
+  --font-readout: "IBM Plex Mono", "JetBrains Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+}
+[data-theme="retro"] .topbar { border-bottom: 2px solid var(--line-strong); }
+[data-theme="retro"] .status {
+  padding: 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--readout-bg);
+  color: var(--readout-text);
+  letter-spacing: .02em;
+}
+[data-theme="retro"] .status .dot { background: var(--readout-text); }
+[data-theme="retro"] .btn { box-shadow: inset 0 -2px 0 var(--bevel); }
+[data-theme="retro"] h2 { color: var(--muted); }
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }
@@ -100,7 +220,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: 2px; }
 
 /* --- Top bar ------------------------------------------------------------- */
 
@@ -135,7 +255,7 @@ body {
   white-space: nowrap;
 }
 
-.status { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 13px; }
+.status { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font: 13px/1.45 var(--font-readout); }
 .status #status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
 .status[data-tone="ok"] .dot { background: var(--ok); }
@@ -207,6 +327,7 @@ h2 {
 }
 .crop-label {
   position: absolute;
+  font-family: var(--font-readout);
   left: 6px;
   top: 6px;
   padding: 2px 6px;
@@ -249,7 +370,7 @@ h2 {
 @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 .jobline { display: flex; align-items: center; gap: 12px; margin-top: 10px; font-size: 13px; }
 .job-text { flex: 1; min-width: 0; }
-.job-time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.job-time { color: var(--muted); font-family: var(--font-readout); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .alert {
   top: 16px;
@@ -345,7 +466,7 @@ h2 {
   border-radius: 6px;
   background: var(--hist-bg);
 }
-.histogram figcaption { font-variant-numeric: tabular-nums; }
+.histogram figcaption, #size-hint, #crop-info { font-family: var(--font-readout); font-variant-numeric: tabular-nums; }
 .clip-warn { color: var(--accent); }
 
 .range { display: grid; grid-template-columns: 74px 1fr 46px; align-items: center; gap: 10px; color: var(--muted); }
@@ -359,6 +480,7 @@ h2 {
   background: transparent;
   color: var(--text);
   font: inherit;
+  font-family: var(--font-readout);
   font-variant-numeric: tabular-nums;
   text-align: right;
   cursor: text;
