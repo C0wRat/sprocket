@@ -1,4 +1,5 @@
 import { clamp, mapRect, migrateOrientation, toDisplay, toScanner } from './geometry.js';
+import { BRANDS, filmType, films, firstStock, isStock, isos, stockName } from './films.js';
 import { computeHistogram, drawHistogram } from './histogram.js';
 import { MAX_SCALE, STEP, clampView, cropView, fitScale, fitView, isZoomed, layout, pan, zoomAt } from './zoom.js';
 
@@ -9,7 +10,8 @@ const el = {
   crop: $('crop'), cropLabel: $('crop-label'),
   alert: $('alert'), alertText: $('alert-text'), alertClose: $('alert-close'),
   jobbar: $('jobbar'), bar: $('bar'), jobText: $('job-text'), jobTime: $('job-time'), cancel: $('cancel'),
-  film: $('film'), adjustReset: $('adjust-reset'), adjustHint: $('adjust-hint'),
+  film: $('film'), stockBrand: $('stock-brand'), stockFilm: $('stock-film'), stockIso: $('stock-iso'),
+  adjustReset: $('adjust-reset'), adjustHint: $('adjust-hint'),
   preset: $('preset'), presetSave: $('preset-save'), presetActions: $('preset-actions'),
   presetRename: $('preset-rename'), presetDelete: $('preset-delete'),
   lock: $('lock'), lockHint: $('lock-hint'),
@@ -38,7 +40,7 @@ const SLIDERS = ['brightness', 'contrast', 'saturation', 'warmth', 'tint'];
 const COLOUR_SLIDERS = ['saturation', 'warmth', 'tint'];
 const sliders = Object.fromEntries(SLIDERS.map((name) => [name, { input: $(name), out: $(`${name}-out`) }]));
 const DEFAULTS = {
-  film: 'color-negative', brightness: 0, contrast: 0, saturation: 0, warmth: 0, tint: 0,
+  film: 'color-negative', stock: null, brightness: 0, contrast: 0, saturation: 0, warmth: 0, tint: 0,
   rotate: 0, mirror: false, crop: null,
   zoomCrop: false, // the preview follows the crop (zoom to crop)
   // How rotate and mirror combine: 2 = rotate, then mirror (see geometry.js).
@@ -77,6 +79,7 @@ function loadSettings() {
   } catch { /* storage unavailable or corrupt */ }
   const s = { ...DEFAULTS, ...saved };
   if (!FILMS.includes(s.film)) s.film = DEFAULTS.film;
+  if (!isStock(s.stock) || filmType(s.stock.brand, s.stock.film) !== s.film) s.stock = null;
   for (const name of SLIDERS) {
     if (!Number.isFinite(s[name])) s[name] = 0;
     s[name] = clamp(Math.round(s[name]), -100, 100);
@@ -694,7 +697,38 @@ function renderSizeHint() {
 
 function renderFilm() {
   for (const b of el.film.querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.value === settings.film));
+  renderStock();
   renderSliders();
+}
+
+// The Brand / Film / ISO pickers. Each lists what the one before it allows.
+function renderStock() {
+  const { brand = '', film = '', iso = '' } = settings.stock ?? {};
+  const fill = (select, values, chosen) => {
+    select.replaceChildren(...values.map((v) => new Option(String(v), String(v))));
+    select.value = String(chosen);
+  };
+  if (el.stockBrand.options.length === 1) el.stockBrand.append(...BRANDS.map((b) => new Option(b, b)));
+  el.stockBrand.value = brand;
+  fill(el.stockFilm, films(brand), film);
+  fill(el.stockIso, isos(brand, film), iso);
+  el.stockFilm.disabled = !brand;
+  el.stockIso.disabled = isos(brand, film).length < 2;
+  el.stockBrand.title = settings.stock ? `${stockName(settings.stock)}: ${FILM_NAMES[settings.film]} film` : 'The film’s brand. Any film: just choose the type above';
+}
+
+// Choose a stock (or null for any film). Its film type is chosen with it.
+function setStock(stock) {
+  settings.stock = stock;
+  const film = stock ? filmType(stock.brand, stock.film) : settings.film;
+  const filmChanged = film !== settings.film;
+  settings.film = film;
+  saveSettings();
+  renderFilm();
+  if (filmChanged) {
+    renderLock();
+    renderPreview();
+  }
 }
 
 // Film type and slider values, as the server expects them.
@@ -774,6 +808,7 @@ function applyPreset(name) {
   chosenPreset = preset.name;
   const filmChanged = preset.film !== settings.film;
   settings.film = preset.film;
+  if (settings.stock && filmType(settings.stock.brand, settings.stock.film) !== settings.film) settings.stock = null;
   setSliders(Object.fromEntries(slidersFor(preset.film).map((s) => [s, preset[s]])));
   if (filmChanged) {
     renderFilm();
@@ -947,12 +982,17 @@ function bindControls() {
   for (const b of el.film.querySelectorAll('button')) {
     b.addEventListener('click', () => {
       settings.film = b.dataset.value;
+      // A stock of another type no longer applies.
+      if (settings.stock && filmType(settings.stock.brand, settings.stock.film) !== settings.film) settings.stock = null;
       saveSettings();
       renderFilm();
       renderLock();
       renderPreview();
     });
   }
+  el.stockBrand.addEventListener('change', () => setStock(firstStock(el.stockBrand.value)));
+  el.stockFilm.addEventListener('change', () => setStock(firstStock(settings.stock.brand, el.stockFilm.value)));
+  el.stockIso.addEventListener('change', () => setStock({ ...settings.stock, iso: Number(el.stockIso.value) }));
   el.lock.addEventListener('click', toggleLock);
   for (const name of SLIDERS) {
     const { input } = sliders[name];
@@ -1062,6 +1102,7 @@ async function startJob(kind) {
       mirror: settings.mirror,
       crop: settings.crop,
       levels: activeLock() && { low: settings.lock.low, high: settings.lock.high },
+      stock: stockName(settings.stock),
       roll: settings.roll || 'roll',
       frame: Number(settings.frame) || 0,
       save_jpeg: settings.saveJpeg,

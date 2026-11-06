@@ -95,6 +95,8 @@ To build it yourself: `docker build -t sprocket .`
 
 1. Put the film in the holder and push it into the scanner until the first frame is in place.
 2. Choose the film type: **Color neg**, **Slide** or **B&W neg**.
+   Or pick the stock under it (brand, film and ISO, e.g. Kodak Portra 400), which
+   chooses the type for you and names the stock in the saved files.
 3. Press **Preview** (or the P key). It takes about 18 seconds.
 4. Drag on the preview to crop out the holder's edges, and drag the box to move it.
    Use **Rotate** and **Mirror** (or the M key) if the picture is the wrong way round
@@ -142,7 +144,7 @@ press **Lock colours** on a typical frame (see below).
   rotated. Keep it if you want to do your own conversion later, e.g. with darktable's
   negadoctor, RawTherapee's film negative tool or Negative Lab Pro. A raw TIFF looks
   dark and, for negatives, orange; that's expected.
-- Both files record the date of the scan, the roll, frame and film type and, unless
+- Both files record the date of the scan, the roll, frame and film type (or stock) and, unless
   you chose the device with `--device`, the scanner in their metadata (EXIF in the
   JPEG), so photo libraries can sort and caption them. Metadata text is plain ASCII,
   so "København" is written as "Kobenhavn" there; file and folder names keep it as typed.
