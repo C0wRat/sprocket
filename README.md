@@ -46,6 +46,51 @@ Sprocket remembers the choice by model and USB port, so it survives unplugging a
 restarts as long as the scanner goes back into the same port. If the chosen scanner
 isn't connected, the other one is used and the page says so.
 
+## Run it with Docker
+
+Ready-made images are published to GitHub Container Registry for `linux/amd64` and
+`linux/arm64` (a Raspberry Pi next to the scanner works): `latest` follows `main`, and
+every git tag has an image of its own, e.g. `ghcr.io/c0wrat/sprocket:v1.0.0`.
+
+```sh
+docker run -d --name sprocket --restart unless-stopped \
+  -p 8800:8800 \
+  -v ~/Pictures/Sprocket:/scans \
+  -v /dev/bus/usb:/dev/bus/usb --device-cgroup-rule='c 189:* rmw' \
+  --user "$(id -u):$(id -g)" --group-add "$(getent group scanner | cut -d: -f3)" \
+  ghcr.io/c0wrat/sprocket:latest
+```
+
+Then open <http://localhost:8800> (or the machine's address: the container listens on
+all its addresses, and there is no login).
+
+- **USB:** mounting `/dev/bus/usb` with the device-cgroup rule (189 is USB) lets the
+  container open the scanner even after it's unplugged and plugged back in, which gives
+  it a new device file. `--device /dev/bus/usb/001/010` works too, until the next replug.
+- **Your own user:** `--user` makes the scans yours rather than root's, and
+  `--group-add` the host's `scanner` group lets that user open the scanner (SANE's udev
+  rules give it the device). Without both, the container runs as root and can open the
+  scanner anyway, but the files it saves belong to root.
+- Other options go after the image name, e.g. `… ghcr.io/c0wrat/sprocket:latest --debug`.
+  `docker logs sprocket` shows the log.
+- Docker Compose:
+
+  ```yaml
+  services:
+    sprocket:
+      image: ghcr.io/c0wrat/sprocket:latest
+      restart: unless-stopped
+      ports: ["8800:8800"]
+      volumes:
+        - ~/Pictures/Sprocket:/scans
+        - /dev/bus/usb:/dev/bus/usb
+      device_cgroup_rules: ["c 189:* rmw"]
+      user: "1000:1000"   # your id -u : id -g
+      group_add: ["103"]  # getent group scanner | cut -d: -f3
+  ```
+
+To build it yourself: `docker build -t sprocket .`
+
 ## Scanning a roll
 
 1. Put the film in the holder and push it into the scanner until the first frame is in place.
