@@ -409,20 +409,25 @@ function adjustments() {
   return { film: settings.film, ...Object.fromEntries(SLIDERS.map((name) => [name, settings[name]])) };
 }
 
-const signed = (v) => (v > 0 ? `+${v}` : String(v));
+// A typed slider value: a whole number from -100 to 100, or null if it isn't a number yet.
+function sliderValue(text) {
+  const n = Number.parseFloat(text);
+  return Number.isFinite(n) ? clamp(Math.round(n), -100, 100) : null;
+}
 
 function renderSliders() {
   const mono = settings.film === 'bw-negative';
   for (const name of SLIDERS) {
     const { input, out } = sliders[name];
     input.value = settings[name];
-    out.value = signed(settings[name]);
-    input.disabled = mono && COLOUR_SLIDERS.includes(name);
+    // Leave the number alone while it's being typed, so "-" or "" isn't replaced mid-edit.
+    if (document.activeElement !== out) out.value = settings[name];
+    input.disabled = out.disabled = mono && COLOUR_SLIDERS.includes(name);
   }
   el.adjustReset.hidden = SLIDERS.every((name) => settings[name] === 0);
   el.adjustHint.textContent = mono
     ? 'Saturation, Warmth and Tint are for colour film.'
-    : 'Double-click a slider to set it back to 0.';
+    : 'Double-click a slider to set it back to 0, or type a value.';
 }
 
 function setSliders(values) {
@@ -430,6 +435,33 @@ function setSliders(values) {
   saveSettings();
   renderSliders();
   schedulePreview();
+}
+
+// The number next to a slider can be typed in. The preview follows while typing; Enter
+// or leaving the field tidies the number up, and Esc goes back to the value from before.
+function bindSliderNumber(name) {
+  const { out } = sliders[name];
+  let before = 0;
+  out.addEventListener('focus', () => { before = settings[name]; });
+  out.addEventListener('input', () => {
+    const value = sliderValue(out.value);
+    if (value !== null && value !== settings[name]) setSliders({ [name]: value });
+  });
+  out.addEventListener('change', () => {
+    setSliders({ [name]: sliderValue(out.value) ?? settings[name] });
+    out.value = before = settings[name];
+  });
+  out.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      setSliders({ [name]: before });
+      out.value = before;
+      out.select();
+      event.preventDefault();
+    } else if (event.key === 'Enter') {
+      out.value = before = settings[name];
+      out.select();
+    }
+  });
 }
 
 let locking = false; // a lock request is on its way
@@ -522,6 +554,7 @@ function bindControls() {
     const { input } = sliders[name];
     input.addEventListener('input', () => setSliders({ [name]: Number(input.value) }));
     input.addEventListener('dblclick', () => setSliders({ [name]: 0 }));
+    bindSliderNumber(name);
   }
   el.adjustReset.addEventListener('click', () => setSliders(Object.fromEntries(SLIDERS.map((name) => [name, 0]))));
   el.rotate.addEventListener('click', () => {
