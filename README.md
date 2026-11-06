@@ -34,6 +34,13 @@ Then open <http://localhost:8800>. Useful options:
 | `--device NAME` | use this SANE device instead of auto-detecting (and choosing in the page) |
 | `--debug` | log more detail, including everything `scanimage` prints |
 
+The menu at the top right switches between a **Light** and **Dark** look, or follows
+your computer's setting (**System**, the default). There are also **Dracula**, **High
+contrast** (WCAG AAA text contrast and thick focus rings) and **Retro film scanner**.
+This browser remembers the choice.
+The area around the picture stays a neutral dark grey either way, because a bright
+surround changes how you judge exposure and colour.
+
 With more than one OpticFilm connected, a **Scanner** menu appears above the resolution.
 Sprocket remembers the choice by model and USB port, so it survives unplugging and
 restarts as long as the scanner goes back into the same port. If the chosen scanner
@@ -45,10 +52,24 @@ isn't connected, the other one is used and the page says so.
 2. Choose the film type: **Color neg**, **Slide** or **B&W neg**.
 3. Press **Preview** (or the P key). It takes about 18 seconds.
 4. Drag on the preview to crop out the holder's edges, and drag the box to move it.
-   Use **Rotate** and **Mirror** if the picture is the wrong way round or backwards.
+   Use **Rotate** and **Mirror** (or the M key) if the picture is the wrong way round
+   or backwards. The R key rotates 90° clockwise, and Shift+R anticlockwise.
+   To look closely at focus, grain or dust, scroll on the preview (or pinch) to zoom in
+   where the pointer is, and drag with the middle mouse button, or with Space held, to
+   move around. The buttons at the top right, or the keys **+** and **−**, zoom in and
+   out; **0** fits the whole frame and **1** shows one preview pixel per screen pixel.
+   The preview is 600 dpi, so it looks soft close up; the scan itself is sharper.
+   **Crop** (or the C key) zooms to just the cropped part, to check the framing without
+   the holder's edges, and keeps following it after Rotate or Mirror. Press it again
+   for the whole frame; dragging the crop or zooming by hand also turns it off.
 5. Fine-tune the picture with the **Adjust** sliders: Brightness, Contrast, Saturation,
    Warmth (bluer to more orange) and Tint (greener to more magenta). The preview updates
-   right away without scanning again. Double-click a slider to set it back to 0.
+   right away without scanning again. Double-click a slider to set it back to 0, or type
+   an exact value in the box next to it (Esc goes back to the value before).
+   To reuse a look, for a film stock say, press **Save…** next to the **Presets** menu
+   and give it a name. Choosing it later sets the sliders (and the film type it was
+   made for); locked colours are left alone. Presets are kept with the scans, so every
+   browser that uses this Sprocket sees them.
    The histogram above the sliders shows the picture inside the crop, with the share
    of pixels clipped to pure black or white; it turns orange above 1 %. Holder edges
    left inside the crop show up there as clipping.
@@ -82,6 +103,10 @@ press **Lock colours** on a typical frame (see below).
   so "København" is written as "Kobenhavn" there; file and folder names keep it as typed.
   Colour JPEGs carry an sRGB profile, so colour-managed programs show them as intended.
 - Existing files are never overwritten; a repeat scan of a frame is saved as `…-03-2.jpg`.
+- Click a picture under **Recent scans** to see it full size. ← and → go through the
+  other scans, and Esc or a click outside the picture closes it. Ctrl+click or
+  middle-click opens it in a new tab instead.
+- Colour presets are kept in `~/Pictures/Sprocket/.presets.json`.
 - With several scanners, the one chosen in the page is kept in `~/Pictures/Sprocket/.scanner.json`.
 
 Measured with the OpticFilm 8100 and sane-backends 1.2.1:
@@ -142,7 +167,7 @@ roll name changes.
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 .venv/bin/python -m pytest              # uses a fake scanimage, no scanner needed
-node --test tests/*.test.mjs            # crop maths and histogram in the browser code
+node --test tests/*.test.mjs            # crop, zoom and histogram maths in the browser code
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for code style, how to run the app without a
