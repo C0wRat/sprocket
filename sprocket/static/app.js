@@ -1,5 +1,6 @@
 import { clamp, mapRect, migrateOrientation, toDisplay, toScanner } from './geometry.js';
 import { computeHistogram, drawHistogram } from './histogram.js';
+import { MAX_SCALE, STEP, clampView, fitScale, fitView, isZoomed, layout, pan, zoomAt } from './zoom.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -16,6 +17,8 @@ const el = {
   saveJpeg: $('save-jpeg'), saveTiff: $('save-tiff'), sharpen: $('sharpen'),
   btnPreview: $('btn-preview'), btnScan: $('btn-scan'), outputDir: $('output-dir'),
   scans: $('scans'), scansEmpty: $('scans-empty'), toast: $('toast'),
+  zoombar: $('zoombar'), zoomLevel: $('zoom-level'), zoomIn: $('zoom-in'), zoomOut: $('zoom-out'),
+  zoomFit: $('zoom-fit'), zoom100: $('zoom-100'),
 };
 
 const FILMS = ['color-negative', 'slide', 'bw-negative'];
@@ -46,6 +49,7 @@ let previewUrl = null;
 let tracked = null; // the job we're following: { id, state, sawResult }
 let pollTimer = 0;
 let drag = null;
+let view = null; // zoom and pan of the preview (see zoom.js); null: fit the whole picture
 
 // --- Settings (remembered by this browser) -----------------------------------
 
@@ -225,9 +229,12 @@ async function renderPreview() {
     el.preview.src = url;
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = url;
+    // A picture of another shape (it was rotated) starts again from fitting the stage.
+    if (previewSize?.w !== img.naturalWidth || previewSize?.h !== img.naturalHeight) view = null;
     previewSize = { w: img.naturalWidth, h: img.naturalHeight };
     el.empty.hidden = true;
     el.frame.hidden = false;
+    el.zoombar.hidden = false;
     fitFrame();
     drawCrop();
     renderHistogram(img);
@@ -272,22 +279,173 @@ const schedulePreview = debounce(renderPreview, 120);
 
 const cropParam = (crop) => ['x0', 'y0', 'x1', 'y1'].map((k) => crop[k].toFixed(4)).join(',');
 
-// Size the preview to fit the stage, keeping its aspect ratio.
-function fitFrame() {
-  if (!previewSize) return;
+// --- Zoom and pan ----------------------------------------------------------------
+// The crop box is positioned in fractions of the frame, and pointer positions are
+// measured on the frame, so the crop stays lined up however the frame is sized and moved.
+
+// The stage, and the room for the picture when it fits (inside the stage's padding).
+function stageBoxes() {
   const box = el.stage.getBoundingClientRect();
   const style = getComputedStyle(el.stage);
-  const availW = box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-  const availH = box.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-  const ratio = previewSize.w / previewSize.h;
-  let w = availW;
-  let h = w / ratio;
-  if (h > availH) {
-    h = availH;
-    w = h * ratio;
-  }
-  el.frame.style.width = `${Math.max(1, Math.floor(w))}px`;
-  el.frame.style.height = `${Math.max(1, Math.floor(h))}px`;
+  return {
+    stage: { w: box.width, h: box.height },
+    avail: {
+      w: Math.max(1, box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)),
+      h: Math.max(1, box.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)),
+    },
+  };
+}
+
+// Size and place the preview for the current zoom. When not zoomed in it fits the stage,
+// also after the window is resized.
+function fitFrame() {
+  if (!previewSize) return;
+  const { stage, avail } = stageBoxes();
+  if (view) view = clampView(view, previewSize, avail, stage);
+  const box = layout(view ?? fitView(previewSize, avail), previewSize, stage);
+  Object.assign(el.frame.style, {
+    width: `${Math.max(1, box.w)}px`, height: `${Math.max(1, box.h)}px`, left: `${box.left}px`, top: `${box.top}px`,
+  });
+  renderZoom();
+}
+
+function setView(next) {
+  const { avail } = stageBoxes();
+  view = isZoomed(next, previewSize, avail) ? next : null; // back to following the stage size
+  fitFrame();
+}
+
+const stageCentre = () => {
+  const { stage } = stageBoxes();
+  return { x: stage.w / 2, y: stage.h / 2 };
+};
+
+function stagePoint(event) {
+  const r = el.stage.getBoundingClientRect();
+  return { x: event.clientX - r.left, y: event.clientY - r.top };
+}
+
+function zoomTo(scale, point = stageCentre()) {
+  if (!previewSize || el.frame.hidden) return;
+  const { stage, avail } = stageBoxes();
+  setView(zoomAt(view ?? fitView(previewSize, avail), scale, point, previewSize, avail, stage));
+}
+
+const currentScale = () => view?.scale ?? fitScale(previewSize, stageBoxes().avail);
+
+function zoomBy(factor, point) {
+  if (previewSize) zoomTo(currentScale() * factor, point);
+}
+
+function zoomFit() {
+  if (previewSize) setView(fitView(previewSize, stageBoxes().avail));
+}
+
+function renderZoom() {
+  if (!previewSize) return;
+  const scale = currentScale();
+  const fit = fitScale(previewSize, stageBoxes().avail);
+  el.zoomLevel.value = `${Math.round(scale * 100)}%`;
+  el.zoomIn.disabled = scale >= Math.max(fit, MAX_SCALE) * 0.999;
+  el.zoomOut.disabled = el.zoomFit.disabled = !view;
+  el.zoom100.disabled = Math.abs(scale - Math.max(1, fit)) < 0.001;
+  el.stage.classList.toggle('zoomed', Boolean(view));
+  el.stage.classList.toggle('pixels', scale >= 3); // close up, show the preview's real pixels
+}
+
+// Panning: drag with the middle button, or with the left button while Space is held.
+let panning = null; // { pointerId, last: {x, y} }
+let spaceHeld = false;
+// Touch: two fingers pinch to zoom and move the picture.
+const touches = new Map();
+let pinch = null; // { view, distance, mid }
+
+const touchList = () => [...touches.values()];
+const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+function bindZoom() {
+  el.stage.addEventListener('wheel', (event) => {
+    if (!previewSize || el.frame.hidden) return;
+    event.preventDefault();
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
+    // A trackpad pinch arrives as a wheel event with ctrlKey, in smaller steps.
+    const speed = event.ctrlKey ? 0.01 : 0.0015;
+    zoomBy(Math.exp(-event.deltaY * unit * speed), stagePoint(event));
+  }, { passive: false });
+
+  el.stage.addEventListener('pointerdown', (event) => {
+    if (!previewSize || el.frame.hidden) return;
+    if (event.pointerType === 'touch') {
+      touches.set(event.pointerId, stagePoint(event));
+      if (touches.size === 2) {
+        cancelDrag(); // the first finger started a crop; it's a pinch after all
+        const [a, b] = touchList();
+        pinch = { view: view ?? fitView(previewSize, stageBoxes().avail), distance: distance(a, b), mid: midpoint(a, b) };
+      }
+      return;
+    }
+    if (event.button === 1 || (event.button === 0 && spaceHeld)) {
+      panning = { pointerId: event.pointerId, last: stagePoint(event) };
+      el.stage.setPointerCapture(event.pointerId);
+      el.stage.classList.add('panning');
+      event.preventDefault(); // no autoscroll or paste on middle-click
+    }
+  });
+
+  el.stage.addEventListener('pointermove', (event) => {
+    if (pinch && touches.has(event.pointerId)) {
+      touches.set(event.pointerId, stagePoint(event));
+      const [a, b] = touchList();
+      const { stage, avail } = stageBoxes();
+      const mid = midpoint(a, b);
+      const zoomed = zoomAt(pinch.view, pinch.view.scale * (distance(a, b) / pinch.distance), pinch.mid, previewSize, avail, stage);
+      setView(pan(zoomed, mid.x - pinch.mid.x, mid.y - pinch.mid.y, previewSize, avail, stage));
+      return;
+    }
+    if (!panning || event.pointerId !== panning.pointerId) return;
+    const point = stagePoint(event);
+    const { stage, avail } = stageBoxes();
+    if (view) setView(pan(view, point.x - panning.last.x, point.y - panning.last.y, previewSize, avail, stage));
+    panning.last = point;
+  });
+
+  const release = (event) => {
+    touches.delete(event.pointerId);
+    if (touches.size < 2) pinch = null;
+    if (panning?.pointerId === event.pointerId) {
+      panning = null;
+      el.stage.classList.remove('panning');
+    }
+  };
+  el.stage.addEventListener('pointerup', release);
+  el.stage.addEventListener('pointercancel', release);
+  el.stage.addEventListener('auxclick', (event) => event.button === 1 && event.preventDefault());
+
+  // Space turns a left drag into panning, unless a button or field has the focus (where
+  // Space presses or types).
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== ' ' || event.target.closest('button, input, select, textarea, a, [contenteditable]')) return;
+    event.preventDefault(); // don't scroll the page
+    if (!spaceHeld) {
+      spaceHeld = true;
+      el.stage.classList.add('space-pan');
+    }
+  });
+  document.addEventListener('keyup', (event) => {
+    if (event.key !== ' ') return;
+    spaceHeld = false;
+    el.stage.classList.remove('space-pan');
+  });
+  window.addEventListener('blur', () => {
+    spaceHeld = false;
+    el.stage.classList.remove('space-pan');
+  });
+
+  el.zoomIn.addEventListener('click', () => zoomBy(STEP));
+  el.zoomOut.addEventListener('click', () => zoomBy(1 / STEP));
+  el.zoomFit.addEventListener('click', zoomFit);
+  el.zoom100.addEventListener('click', () => zoomTo(1));
 }
 
 // --- Crop ------------------------------------------------------------------------
@@ -337,7 +495,7 @@ function dragRect(d, [x, y]) {
 }
 
 el.frame.addEventListener('pointerdown', (event) => {
-  if (event.button !== 0) return;
+  if (event.button !== 0 || spaceHeld || pinch) return; // panning or pinching instead
   const p = pointerPosition(event);
   const current = displayCrop();
   drag = current && inside(p, current) ? { mode: 'move', start: p, origin: current } : { mode: 'draw', start: p };
@@ -346,10 +504,16 @@ el.frame.addEventListener('pointerdown', (event) => {
 });
 
 el.frame.addEventListener('pointermove', (event) => {
-  if (!drag) return;
+  if (!drag || pinch) return;
   drag.rect = dragRect(drag, pointerPosition(event));
   drawCrop(drag.rect);
 });
+
+// Forget a crop drag that turned out to be something else (a pinch).
+function cancelDrag() {
+  drag = null;
+  drawCrop();
+}
 
 function endDrag() {
   if (!drag) return;
@@ -594,10 +758,15 @@ function bindControls() {
     const key = event.key.toLowerCase();
     if (key === 'p') startJob('preview');
     else if (key === 's') startJob('scan');
+    else if (key === '+' || key === '=') zoomBy(STEP);
+    else if (key === '-') zoomBy(1 / STEP);
+    else if (key === '0') zoomFit();
+    else if (key === '1') zoomTo(1);
     else return;
     event.preventDefault();
   });
 
+  bindZoom();
   new ResizeObserver(fitFrame).observe(el.stage);
 }
 

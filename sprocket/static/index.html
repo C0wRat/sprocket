@@ -48,6 +48,14 @@
         </div>
       </div>
 
+      <div class="zoombar" id="zoombar" role="toolbar" aria-label="Zoom" hidden>
+        <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out (−)">−</button>
+        <output id="zoom-level" title="Zoom: scroll on the preview, or pinch. Drag with the middle button or Space held to move around">100%</output>
+        <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in (+)">+</button>
+        <button type="button" id="zoom-fit" title="Fit the whole frame (0)">Fit</button>
+        <button type="button" id="zoom-100" title="One preview pixel per screen pixel (1)">100%</button>
+      </div>
+
       <div class="alert" id="alert" role="alert" hidden>
         <span id="alert-text"></span>
         <button class="icon-btn" id="alert-close" type="button" aria-label="Dismiss">×</button>

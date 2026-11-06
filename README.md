@@ -41,6 +41,11 @@ Then open <http://localhost:8800>. Useful options:
 3. Press **Preview** (or the P key). It takes about 18 seconds.
 4. Drag on the preview to crop out the holder's edges, and drag the box to move it.
    Use **Rotate** and **Mirror** if the picture is the wrong way round or backwards.
+   To look closely at focus, grain or dust, scroll on the preview (or pinch) to zoom in
+   where the pointer is, and drag with the middle mouse button, or with Space held, to
+   move around. The buttons at the top right, or the keys **+** and **−**, zoom in and
+   out; **0** fits the whole frame and **1** shows one preview pixel per screen pixel.
+   The preview is 600 dpi, so it looks soft close up; the scan itself is sharper.
 5. Fine-tune the picture with the **Adjust** sliders: Brightness, Contrast, Saturation,
    Warmth (bluer to more orange) and Tint (greener to more magenta). The preview updates
    right away without scanning again. Double-click a slider to set it back to 0.
@@ -136,7 +141,7 @@ roll name changes.
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 .venv/bin/python -m pytest              # uses a fake scanimage, no scanner needed
-node --test tests/*.test.mjs            # crop maths and histogram in the browser code
+node --test tests/*.test.mjs            # crop, zoom and histogram maths in the browser code
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for code style, how to run the app without a
