@@ -1,5 +1,7 @@
 # Sprocket
 
+[![CI](https://github.com/C0wRat/sprocket/actions/workflows/ci.yml/badge.svg)](https://github.com/C0wRat/sprocket/actions/workflows/ci.yml)
+
 A small web app for scanning 35 mm film with a **Plustek OpticFilm 8100** on Linux.
 Preview a frame, drag to crop, pick the film type, and scan. You get a finished
 JPEG plus the untouched 16-bit scan as a TIFF.
