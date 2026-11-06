@@ -125,6 +125,16 @@
           <h2>Adjust</h2>
           <button type="button" class="link" id="adjust-reset" hidden>Reset all</button>
         </div>
+        <div class="presets">
+          <select id="preset" aria-label="Colour preset" title="Saved slider settings, shared by every browser that uses this Sprocket">
+            <option value="">Presets…</option>
+          </select>
+          <button type="button" class="btn small" id="preset-save" title="Save the sliders as a preset">Save…</button>
+        </div>
+        <div class="preset-actions" id="preset-actions" hidden>
+          <button type="button" class="link" id="preset-rename">Rename…</button>
+          <button type="button" class="link" id="preset-delete">Delete</button>
+        </div>
         <figure class="histogram" id="histogram-box" hidden>
           <canvas id="histogram" title="Histogram of the picture inside the crop: shadows on the left, highlights on the right"></canvas>
           <figcaption class="hint" id="clipping" title="Pixels with a colour channel at pure black or pure white"></figcaption>

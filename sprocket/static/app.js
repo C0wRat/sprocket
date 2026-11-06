@@ -10,6 +10,8 @@ const el = {
   alert: $('alert'), alertText: $('alert-text'), alertClose: $('alert-close'),
   jobbar: $('jobbar'), bar: $('bar'), jobText: $('job-text'), jobTime: $('job-time'), cancel: $('cancel'),
   film: $('film'), adjustReset: $('adjust-reset'), adjustHint: $('adjust-hint'),
+  preset: $('preset'), presetSave: $('preset-save'), presetActions: $('preset-actions'),
+  presetRename: $('preset-rename'), presetDelete: $('preset-delete'),
   lock: $('lock'), lockHint: $('lock-hint'),
   histogramBox: $('histogram-box'), histogram: $('histogram'), clipping: $('clipping'),
   rotate: $('rotate'), mirror: $('mirror'), cropInfo: $('crop-info'), cropReset: $('crop-reset'),
@@ -62,6 +64,8 @@ let pollTimer = 0;
 let drag = null;
 let shownHistogram = null; // { hist, mono }, redrawn when the theme changes
 let view = null; // zoom and pan of the preview (see zoom.js); null: fit the whole picture
+let presets = []; // saved slider presets, from the server: { name, film, brightness, … }
+let chosenPreset = ''; // the name of the preset last chosen or saved
 
 // --- Settings (remembered by this browser) -----------------------------------
 
@@ -678,6 +682,7 @@ function renderSliders() {
     input.disabled = out.disabled = mono && COLOUR_SLIDERS.includes(name);
   }
   el.adjustReset.hidden = SLIDERS.every((name) => settings[name] === 0);
+  renderPresets();
   el.adjustHint.textContent = mono
     ? 'Saturation, Warmth and Tint are for colour film.'
     : 'Double-click a slider to set it back to 0, or type a value.';
@@ -688,6 +693,96 @@ function setSliders(values) {
   saveSettings();
   renderSliders();
   schedulePreview();
+}
+
+// --- Presets: named slider settings, kept on the server ---------------------------
+
+const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+// The sliders a film type uses: Saturation, Warmth and Tint do nothing for black & white.
+const slidersFor = (film) => (film === 'bw-negative' ? SLIDERS.filter((s) => !COLOUR_SLIDERS.includes(s)) : SLIDERS);
+const matches = (preset) => preset.film === settings.film && slidersFor(preset.film).every((s) => preset[s] === settings[s]);
+
+// What a preset saves: the film type and the sliders it uses (the others as 0).
+const presetValues = () => ({
+  film: settings.film,
+  ...Object.fromEntries(SLIDERS.map((s) => [s, slidersFor(settings.film).includes(s) ? settings[s] : 0])),
+});
+
+async function loadPresets() {
+  try {
+    ({ presets } = await api('/api/presets'));
+  } catch {
+    return; // keep what we have; the server will be polled again
+  }
+  renderPresets();
+}
+
+// The picker shows the preset the sliders are set to, if any, grouped by film type.
+function renderPresets() {
+  const current = presets.find((p) => matches(p) && sameName(p.name, chosenPreset)) ?? presets.find(matches);
+  const groups = FILMS.map((film) => {
+    const group = document.createElement('optgroup');
+    group.label = FILM_NAMES[film][0].toUpperCase() + FILM_NAMES[film].slice(1);
+    group.append(...presets.filter((p) => p.film === film).map((p) => new Option(p.name, p.name)));
+    return group;
+  }).filter((group) => group.children.length);
+  el.preset.replaceChildren(new Option(presets.length ? 'Presets…' : 'No presets yet', ''), ...groups);
+  el.preset.value = current?.name ?? '';
+  el.presetActions.hidden = !current;
+}
+
+// A preset sets the sliders, and the film type it was made for. Locked colours stay as they are.
+function applyPreset(name) {
+  const preset = presets.find((p) => p.name === name);
+  if (!preset) return;
+  chosenPreset = preset.name;
+  const filmChanged = preset.film !== settings.film;
+  settings.film = preset.film;
+  setSliders(Object.fromEntries(slidersFor(preset.film).map((s) => [s, preset[s]])));
+  if (filmChanged) {
+    renderFilm();
+    renderLock();
+  }
+}
+
+async function savePreset() {
+  const name = window.prompt('Name for this preset, e.g. the film stock:', el.preset.value || chosenPreset)?.trim();
+  if (!name) return;
+  const existing = presets.find((p) => sameName(p.name, name));
+  if (existing && !matches(existing) && !window.confirm(`Replace the preset “${existing.name}”?`)) return;
+  try {
+    const saved = await api(`/api/presets/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify(presetValues()) });
+    chosenPreset = saved.name;
+    showToast(`Saved the preset “${saved.name}”.`);
+  } catch (err) {
+    showAlert(err.message);
+  }
+  loadPresets();
+}
+
+async function renamePreset() {
+  const old = el.preset.value;
+  if (!old) return;
+  const name = window.prompt(`New name for “${old}”:`, old)?.trim();
+  if (!name || name === old) return;
+  try {
+    chosenPreset = (await api(`/api/presets/${encodeURIComponent(old)}`, { method: 'PATCH', body: JSON.stringify({ name }) })).name;
+  } catch (err) {
+    showAlert(err.message);
+  }
+  loadPresets();
+}
+
+async function deletePreset() {
+  const name = el.preset.value;
+  if (!name || !window.confirm(`Delete the preset “${name}”? The sliders stay as they are.`)) return;
+  try {
+    await api(`/api/presets/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    showToast(`Deleted the preset “${name}”.`);
+  } catch (err) {
+    showAlert(err.message);
+  }
+  loadPresets();
 }
 
 // The number next to a slider can be typed in. The preview follows while typing; Enter
@@ -829,6 +924,11 @@ function bindControls() {
     input.addEventListener('dblclick', () => setSliders({ [name]: 0 }));
     bindSliderNumber(name);
   }
+  el.preset.addEventListener('change', () => applyPreset(el.preset.value));
+  el.preset.addEventListener('focus', loadPresets); // pick up presets saved in another browser
+  el.presetSave.addEventListener('click', savePreset);
+  el.presetRename.addEventListener('click', renamePreset);
+  el.presetDelete.addEventListener('click', deletePreset);
   el.adjustReset.addEventListener('click', () => setSliders(Object.fromEntries(SLIDERS.map((name) => [name, 0]))));
   el.rotate.addEventListener('click', () => rotateBy(90));
   el.mirror.addEventListener('click', toggleMirror);
@@ -1143,3 +1243,4 @@ renderControls();
 bindControls();
 poll();
 loadScans();
+loadPresets();

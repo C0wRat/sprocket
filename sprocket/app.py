@@ -7,8 +7,10 @@ from typing import Annotated
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from . import imaging, library
+from .presets import PresetExists, PresetNotFound, PresetStore, PresetValues
 from .service import Adjustments, Busy, FilmType, LockedLevels, NotConnected, ScannerService, ScanRequest
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -26,6 +28,7 @@ class RevalidatedStaticFiles(StaticFiles):
 def create_app(service: ScannerService) -> FastAPI:
     app = FastAPI(title="Sprocket", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.service = service
+    presets = PresetStore(service.output)
 
     @app.exception_handler(Busy)
     async def busy(_request, exc: Busy) -> JSONResponse:
@@ -34,6 +37,14 @@ def create_app(service: ScannerService) -> FastAPI:
     @app.exception_handler(NotConnected)
     async def not_connected(_request, exc: NotConnected) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=503)
+
+    @app.exception_handler(PresetNotFound)
+    async def preset_not_found(_request, exc: PresetNotFound) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=404)
+
+    @app.exception_handler(PresetExists)
+    async def preset_exists(_request, exc: PresetExists) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=409)
 
     @app.exception_handler(ValueError)
     async def bad_value(_request, exc: ValueError) -> JSONResponse:
@@ -94,6 +105,24 @@ def create_app(service: ScannerService) -> FastAPI:
         roll = library.sanitize_roll(roll)
         return {"roll": roll, "frame": library.next_frame(service.output, roll)}
 
+    @app.get("/api/presets")
+    def list_presets() -> dict:
+        return {"presets": [p.model_dump() for p in presets.entries()]}
+
+    @app.put("/api/presets/{name}")
+    def save_preset(name: str, values: PresetValues) -> dict:
+        """Create the preset `name`, or replace it."""
+        return presets.save(name, values).model_dump()
+
+    @app.patch("/api/presets/{name}")
+    def rename_preset(name: str, change: PresetRename) -> dict:
+        return presets.rename(name, change.name).model_dump()
+
+    @app.delete("/api/presets/{name}")
+    def delete_preset(name: str) -> dict:
+        presets.delete(name)
+        return {"deleted": name}
+
     @app.get("/files/{path:path}")
     def files(path: str) -> FileResponse:
         root = service.output.resolve()
@@ -103,6 +132,10 @@ def create_app(service: ScannerService) -> FastAPI:
         return FileResponse(target)
 
     return app
+
+
+class PresetRename(BaseModel):
+    name: str
 
 
 def _parse_crop(text: str | None) -> tuple[float, float, float, float] | None:

@@ -61,6 +61,10 @@ surround changes how you judge exposure and colour.
    Warmth (bluer to more orange) and Tint (greener to more magenta). The preview updates
    right away without scanning again. Double-click a slider to set it back to 0, or type
    an exact value in the box next to it (Esc goes back to the value before).
+   To reuse a look, for a film stock say, press **Save…** next to the **Presets** menu
+   and give it a name. Choosing it later sets the sliders (and the film type it was
+   made for); locked colours are left alone. Presets are kept with the scans, so every
+   browser that uses this Sprocket sees them.
    The histogram above the sliders shows the picture inside the crop, with the share
    of pixels clipped to pure black or white; it turns orange above 1 %. Holder edges
    left inside the crop show up there as clipping.
@@ -97,6 +101,7 @@ press **Lock colours** on a typical frame (see below).
 - Click a picture under **Recent scans** to see it full size. ← and → go through the
   other scans, and Esc or a click outside the picture closes it. Ctrl+click or
   middle-click opens it in a new tab instead.
+- Colour presets are kept in `~/Pictures/Sprocket/.presets.json`.
 
 Measured with the OpticFilm 8100 and sane-backends 1.2.1:
 
