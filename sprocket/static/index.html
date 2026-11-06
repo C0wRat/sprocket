@@ -179,5 +179,20 @@
       <p class="hint" id="scans-empty" hidden>Your scans will appear here.</p>
     </section>
   </main>
+
+  <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-name">
+    <div class="lightbox-bar">
+      <span class="lightbox-name" id="lightbox-name"></span>
+      <span class="lightbox-count" id="lightbox-count"></span>
+      <span class="lightbox-files" id="lightbox-files"></span>
+      <button type="button" class="icon-btn" id="lightbox-close" aria-label="Close" title="Close (Esc)">×</button>
+    </div>
+    <div class="lightbox-stage" id="lightbox-stage">
+      <img id="lightbox-img" alt="">
+      <p class="hint lightbox-note" id="lightbox-note" hidden></p>
+    </div>
+    <button type="button" class="lightbox-nav prev" id="lightbox-prev" aria-label="Previous scan" title="Previous (←)">‹</button>
+    <button type="button" class="lightbox-nav next" id="lightbox-next" aria-label="Next scan" title="Next (→)">›</button>
+  </dialog>
 </body>
 </html>

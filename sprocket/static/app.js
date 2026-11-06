@@ -16,6 +16,10 @@ const el = {
   saveJpeg: $('save-jpeg'), saveTiff: $('save-tiff'), sharpen: $('sharpen'),
   btnPreview: $('btn-preview'), btnScan: $('btn-scan'), outputDir: $('output-dir'),
   scans: $('scans'), scansEmpty: $('scans-empty'), toast: $('toast'),
+  lightbox: $('lightbox'), lightboxStage: $('lightbox-stage'), lightboxImg: $('lightbox-img'),
+  lightboxName: $('lightbox-name'), lightboxCount: $('lightbox-count'), lightboxFiles: $('lightbox-files'),
+  lightboxNote: $('lightbox-note'), lightboxClose: $('lightbox-close'),
+  lightboxPrev: $('lightbox-prev'), lightboxNext: $('lightbox-next'),
 };
 
 const FILMS = ['color-negative', 'slide', 'bw-negative'];
@@ -583,7 +587,10 @@ function bindControls() {
   el.cancel.addEventListener('click', cancelJob);
   el.alertClose.addEventListener('click', hideAlert);
 
+  bindLightbox();
+
   document.addEventListener('keydown', (event) => {
+    if (el.lightbox.open) return; // the overlay has its own keys
     if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
     // Typing in a field shouldn't scan, but after moving a slider or ticking a box it should.
     if (event.target.closest('input:not([type=range], [type=checkbox]), select, textarea, [contenteditable]')) return;
@@ -647,11 +654,15 @@ async function loadScans() {
   } catch {
     return;
   }
+  shownScans = scans;
   el.scans.replaceChildren(...scans.map(scanCard));
   el.scansEmpty.hidden = scans.length > 0;
+  if (el.lightbox.open) renderLightbox();
 }
 
-function scanCard(scan) {
+let shownScans = []; // the scans in the gallery, newest first
+
+function scanCard(scan, index) {
   const card = document.createElement('figure');
   card.className = 'scan';
   const main = scan.files.jpeg ?? scan.files.tiff;
@@ -660,6 +671,8 @@ function scanCard(scan) {
   thumb.href = main.url;
   thumb.target = '_blank';
   thumb.rel = 'noopener';
+  thumb.title = 'Open (Ctrl+click: new tab)';
+  openOnPlainClick(thumb, index);
   if (scan.thumb) {
     const img = document.createElement('img');
     img.src = scan.thumb;
@@ -684,12 +697,106 @@ function scanCard(scan) {
     a.textContent = label;
     a.title = megabytes(file.size);
     if (kind === 'tiff') a.download = '';
-    else { a.target = '_blank'; a.rel = 'noopener'; }
+    else {
+      a.target = '_blank';
+      a.rel = 'noopener';
+      openOnPlainClick(a, index);
+    }
     files.append(a);
   }
   caption.append(name, files);
   card.append(thumb, caption);
   return card;
+}
+
+// --- Lightbox: a saved scan, full size, on top of the page -------------------------
+
+let lightboxIndex = 0;
+let lightboxOpener = null; // focused again when the lightbox closes
+
+// A plain left click opens the lightbox. Middle-click, Ctrl/Cmd/Shift+click and "open
+// in new tab" still follow the link, so a scan can always be opened in its own tab.
+function openOnPlainClick(link, index) {
+  link.addEventListener('click', (event) => {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    openLightbox(index, link);
+  });
+}
+
+function openLightbox(index, opener) {
+  lightboxIndex = index;
+  lightboxOpener = opener;
+  renderLightbox();
+  el.lightbox.showModal(); // traps focus, makes the page inert and closes on Esc
+  el.lightboxClose.focus();
+}
+
+function closeLightbox() {
+  if (el.lightbox.open) el.lightbox.close();
+}
+
+function stepLightbox(delta) {
+  const next = lightboxIndex + delta;
+  if (next < 0 || next >= shownScans.length) return;
+  lightboxIndex = next;
+  renderLightbox();
+}
+
+function renderLightbox() {
+  const scan = shownScans[lightboxIndex];
+  if (!scan) {
+    closeLightbox();
+    return;
+  }
+  el.lightboxName.textContent = scan.name;
+  el.lightboxName.title = `${scan.roll}/${scan.name}`;
+  el.lightboxCount.textContent = `${lightboxIndex + 1} of ${shownScans.length}`;
+  // Browsers can't show TIFFs, so a scan saved only as a raw TIFF shows its thumbnail.
+  const src = scan.files.jpeg?.url ?? scan.thumb;
+  el.lightboxImg.hidden = !src;
+  if (src && el.lightboxImg.getAttribute('src') !== src) el.lightboxImg.src = src;
+  el.lightboxImg.alt = scan.name;
+  el.lightboxNote.hidden = Boolean(scan.files.jpeg);
+  el.lightboxNote.textContent = src
+    ? 'Only the raw TIFF was saved. This is its small preview.'
+    : 'Only the raw TIFF was saved, which a browser can’t show. Download it below.';
+  const links = [];
+  for (const [kind, label] of [['jpeg', 'JPEG'], ['tiff', 'TIFF']]) {
+    const file = scan.files[kind];
+    if (!file) continue;
+    const a = document.createElement('a');
+    a.href = file.url;
+    a.textContent = `${label} · ${megabytes(file.size)}`;
+    if (kind === 'tiff') a.download = '';
+    else { a.target = '_blank'; a.rel = 'noopener'; }
+    links.push(a);
+  }
+  el.lightboxFiles.replaceChildren(...links);
+  el.lightboxPrev.disabled = lightboxIndex === 0;
+  el.lightboxNext.disabled = lightboxIndex === shownScans.length - 1;
+}
+
+function bindLightbox() {
+  el.lightboxClose.addEventListener('click', closeLightbox);
+  el.lightboxPrev.addEventListener('click', () => stepLightbox(-1));
+  el.lightboxNext.addEventListener('click', () => stepLightbox(1));
+  // A click on the dark area around the picture closes it.
+  el.lightbox.addEventListener('click', (event) => {
+    if (event.target === el.lightbox || event.target === el.lightboxStage) closeLightbox();
+  });
+  el.lightbox.addEventListener('keydown', (event) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    // Newest first: left goes to newer scans, right to older ones, as in the gallery.
+    if (event.key === 'ArrowLeft') stepLightbox(-1);
+    else if (event.key === 'ArrowRight') stepLightbox(1);
+    else return;
+    event.preventDefault();
+  });
+  el.lightbox.addEventListener('close', () => {
+    lightboxOpener?.focus();
+    lightboxOpener = null;
+  });
 }
 
 // --- Messages and helpers -----------------------------------------------------------

@@ -75,6 +75,9 @@ press **Lock colours** on a typical frame (see below).
   so "København" is written as "Kobenhavn" there; file and folder names keep it as typed.
   Colour JPEGs carry an sRGB profile, so colour-managed programs show them as intended.
 - Existing files are never overwritten; a repeat scan of a frame is saved as `…-03-2.jpg`.
+- Click a picture under **Recent scans** to see it full size. ← and → go through the
+  other scans, and Esc or a click outside the picture closes it. Ctrl+click or
+  middle-click opens it in a new tab instead.
 
 Measured with the OpticFilm 8100 and sane-backends 1.2.1:
 
