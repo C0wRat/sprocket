@@ -487,6 +487,14 @@ async function toggleLock() {
   renderPreview();
 }
 
+// Turn the picture by a multiple of 90°: clockwise if positive. The button and the R key both use this.
+function rotateBy(degrees) {
+  settings.rotate = (((settings.rotate + degrees) % 360) + 360) % 360;
+  saveSettings();
+  renderCropInfo();
+  renderPreview(); // the crop box is redrawn once the rotated image arrives
+}
+
 function renderSharpen() {
   for (const b of el.sharpen.querySelectorAll('button')) {
     b.setAttribute('aria-checked', String(b.dataset.value === settings.sharpen));
@@ -524,12 +532,7 @@ function bindControls() {
     input.addEventListener('dblclick', () => setSliders({ [name]: 0 }));
   }
   el.adjustReset.addEventListener('click', () => setSliders(Object.fromEntries(SLIDERS.map((name) => [name, 0]))));
-  el.rotate.addEventListener('click', () => {
-    settings.rotate = (settings.rotate + 90) % 360;
-    saveSettings();
-    renderCropInfo();
-    renderPreview(); // the crop box is redrawn once the rotated image arrives
-  });
+  el.rotate.addEventListener('click', () => rotateBy(90));
   el.mirror.addEventListener('click', () => {
     settings.mirror = !settings.mirror;
     el.mirror.setAttribute('aria-pressed', String(settings.mirror));
@@ -590,6 +593,7 @@ function bindControls() {
     const key = event.key.toLowerCase();
     if (key === 'p') startJob('preview');
     else if (key === 's') startJob('scan');
+    else if (key === 'r') rotateBy(event.shiftKey ? -90 : 90);
     else return;
     event.preventDefault();
   });
