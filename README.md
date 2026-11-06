@@ -40,7 +40,8 @@ Then open <http://localhost:8800>. Useful options:
 2. Choose the film type: **Color neg**, **Slide** or **B&W neg**.
 3. Press **Preview** (or the P key). It takes about 18 seconds.
 4. Drag on the preview to crop out the holder's edges, and drag the box to move it.
-   Use **Rotate** and **Mirror** if the picture is the wrong way round or backwards.
+   Use **Rotate** and **Mirror** (or the M key) if the picture is the wrong way round
+   or backwards.
 5. Fine-tune the picture with the **Adjust** sliders: Brightness, Contrast, Saturation,
    Warmth (bluer to more orange) and Tint (greener to more magenta). The preview updates
    right away without scanning again. Double-click a slider to set it back to 0.
