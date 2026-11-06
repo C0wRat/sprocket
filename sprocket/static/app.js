@@ -1,4 +1,4 @@
-import { clamp, mapRect, toDisplay, toScanner } from './geometry.js';
+import { clamp, mapRect, migrateOrientation, toDisplay, toScanner } from './geometry.js';
 import { computeHistogram, drawHistogram } from './histogram.js';
 
 const $ = (id) => document.getElementById(id);
@@ -12,10 +12,15 @@ const el = {
   lock: $('lock'), lockHint: $('lock-hint'),
   histogramBox: $('histogram-box'), histogram: $('histogram'), clipping: $('clipping'),
   rotate: $('rotate'), mirror: $('mirror'), cropInfo: $('crop-info'), cropReset: $('crop-reset'),
-  resolution: $('resolution'), sizeHint: $('size-hint'), roll: $('roll'), frameNo: $('frame-no'),
+  resolution: $('resolution'), resolutionOut: $('resolution-out'), resolutionTicks: $('resolution-ticks'),
+  sizeHint: $('size-hint'), roll: $('roll'), frameNo: $('frame-no'),
   saveJpeg: $('save-jpeg'), saveTiff: $('save-tiff'), sharpen: $('sharpen'),
   btnPreview: $('btn-preview'), btnScan: $('btn-scan'), outputDir: $('output-dir'),
   scans: $('scans'), scansEmpty: $('scans-empty'), toast: $('toast'), theme: $('theme'),
+  lightbox: $('lightbox'), lightboxStage: $('lightbox-stage'), lightboxImg: $('lightbox-img'),
+  lightboxName: $('lightbox-name'), lightboxCount: $('lightbox-count'), lightboxFiles: $('lightbox-files'),
+  lightboxNote: $('lightbox-note'), lightboxClose: $('lightbox-close'),
+  lightboxPrev: $('lightbox-prev'), lightboxNext: $('lightbox-next'),
 };
 
 const FILMS = ['color-negative', 'slide', 'bw-negative'];
@@ -29,6 +34,8 @@ const sliders = Object.fromEntries(SLIDERS.map((name) => [name, { input: $(name)
 const DEFAULTS = {
   film: 'color-negative', brightness: 0, contrast: 0, saturation: 0, warmth: 0, tint: 0,
   rotate: 0, mirror: false, crop: null,
+  // How rotate and mirror combine: 2 = rotate, then mirror (see geometry.js).
+  orientation: 2,
   // Locked colours: the levels of one frame, { film, roll, low: [r, g, b], high: [r, g, b] }.
   lock: null,
   resolution: 3600, roll: 'roll-01', frame: 1, saveJpeg: true, saveTiff: true, sharpen: 'off',
@@ -65,6 +72,8 @@ function loadSettings() {
     s[name] = clamp(Math.round(s[name]), -100, 100);
   }
   if (![0, 90, 180, 270].includes(s.rotate)) s.rotate = 0;
+  s.mirror = s.mirror === true;
+  if (saved.orientation !== 2) Object.assign(s, migrateOrientation(s), { orientation: 2 });
   if (!isValidCrop(s.crop)) s.crop = null;
   if (!isValidLock(s.lock)) s.lock = null;
   if (!SHARPEN.includes(s.sharpen)) s.sharpen = DEFAULTS.sharpen;
@@ -411,17 +420,31 @@ function renderCropInfo() {
 
 // --- Controls ----------------------------------------------------------------------
 
-let shownResolutions = '';
+// The resolution slider steps through the scanner's resolutions: its value is an index.
+let resolutions = [];
 
 function renderResolutions(caps) {
-  const key = caps.resolutions.join(',');
-  if (key === shownResolutions) return;
-  shownResolutions = key;
-  el.resolution.replaceChildren(...caps.resolutions.map((r) => new Option(`${r} dpi`, r)));
-  if (!caps.resolutions.includes(Number(settings.resolution))) {
-    settings.resolution = caps.resolutions.reduce((a, b) => (Math.abs(b - 3600) < Math.abs(a - 3600) ? b : a));
+  if (caps.resolutions.join(',') === resolutions.join(',')) return;
+  resolutions = [...caps.resolutions];
+  el.resolution.max = resolutions.length - 1;
+  el.resolution.disabled = resolutions.length < 2;
+  el.resolutionTicks.replaceChildren(...resolutions.map((r) => {
+    const tick = document.createElement('span');
+    tick.textContent = r;
+    return tick;
+  }));
+  if (!resolutions.includes(Number(settings.resolution))) {
+    settings.resolution = resolutions.reduce((a, b) => (Math.abs(b - 3600) < Math.abs(a - 3600) ? b : a));
   }
-  el.resolution.value = settings.resolution;
+  renderResolution();
+}
+
+function renderResolution() {
+  const index = resolutions.indexOf(Number(settings.resolution));
+  el.resolution.value = index;
+  el.resolutionOut.value = `${settings.resolution} dpi`;
+  el.resolution.setAttribute('aria-valuetext', `${settings.resolution} dpi`);
+  el.resolutionTicks.querySelectorAll('span').forEach((tick, i) => tick.classList.toggle('on', i === index));
   renderSizeHint();
 }
 
@@ -443,20 +466,25 @@ function adjustments() {
   return { film: settings.film, ...Object.fromEntries(SLIDERS.map((name) => [name, settings[name]])) };
 }
 
-const signed = (v) => (v > 0 ? `+${v}` : String(v));
+// A typed slider value: a whole number from -100 to 100, or null if it isn't a number yet.
+function sliderValue(text) {
+  const n = Number.parseFloat(text);
+  return Number.isFinite(n) ? clamp(Math.round(n), -100, 100) : null;
+}
 
 function renderSliders() {
   const mono = settings.film === 'bw-negative';
   for (const name of SLIDERS) {
     const { input, out } = sliders[name];
     input.value = settings[name];
-    out.value = signed(settings[name]);
-    input.disabled = mono && COLOUR_SLIDERS.includes(name);
+    // Leave the number alone while it's being typed, so "-" or "" isn't replaced mid-edit.
+    if (document.activeElement !== out) out.value = settings[name];
+    input.disabled = out.disabled = mono && COLOUR_SLIDERS.includes(name);
   }
   el.adjustReset.hidden = SLIDERS.every((name) => settings[name] === 0);
   el.adjustHint.textContent = mono
     ? 'Saturation, Warmth and Tint are for colour film.'
-    : 'Double-click a slider to set it back to 0.';
+    : 'Double-click a slider to set it back to 0, or type a value.';
 }
 
 function setSliders(values) {
@@ -464,6 +492,33 @@ function setSliders(values) {
   saveSettings();
   renderSliders();
   schedulePreview();
+}
+
+// The number next to a slider can be typed in. The preview follows while typing; Enter
+// or leaving the field tidies the number up, and Esc goes back to the value from before.
+function bindSliderNumber(name) {
+  const { out } = sliders[name];
+  let before = 0;
+  out.addEventListener('focus', () => { before = settings[name]; });
+  out.addEventListener('input', () => {
+    const value = sliderValue(out.value);
+    if (value !== null && value !== settings[name]) setSliders({ [name]: value });
+  });
+  out.addEventListener('change', () => {
+    setSliders({ [name]: sliderValue(out.value) ?? settings[name] });
+    out.value = before = settings[name];
+  });
+  out.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      setSliders({ [name]: before });
+      out.value = before;
+      out.select();
+      event.preventDefault();
+    } else if (event.key === 'Enter') {
+      out.value = before = settings[name];
+      out.select();
+    }
+  });
 }
 
 let locking = false; // a lock request is on its way
@@ -521,6 +576,26 @@ async function toggleLock() {
   renderPreview();
 }
 
+// Turn the picture by a multiple of 90°: clockwise if positive. The button and the R key both use this.
+function rotateBy(degrees) {
+  settings.rotate = (((settings.rotate + degrees) % 360) + 360) % 360;
+  saveSettings();
+  renderCropInfo();
+  renderPreview(); // the crop box is redrawn once the rotated image arrives
+}
+
+// The button and the M key both go through here, so the button always shows the state.
+function toggleMirror() {
+  settings.mirror = !settings.mirror;
+  renderMirror();
+  saveSettings();
+  renderPreview();
+}
+
+function renderMirror() {
+  el.mirror.setAttribute('aria-pressed', String(settings.mirror));
+}
+
 function renderSharpen() {
   for (const b of el.sharpen.querySelectorAll('button')) {
     b.setAttribute('aria-checked', String(b.dataset.value === settings.sharpen));
@@ -531,7 +606,7 @@ function renderSharpen() {
 function renderControls() {
   renderFilm();
   renderLock();
-  el.mirror.setAttribute('aria-pressed', String(settings.mirror));
+  renderMirror();
   el.roll.value = settings.roll;
   el.frameNo.value = settings.frame;
   el.saveJpeg.checked = settings.saveJpeg;
@@ -556,20 +631,11 @@ function bindControls() {
     const { input } = sliders[name];
     input.addEventListener('input', () => setSliders({ [name]: Number(input.value) }));
     input.addEventListener('dblclick', () => setSliders({ [name]: 0 }));
+    bindSliderNumber(name);
   }
   el.adjustReset.addEventListener('click', () => setSliders(Object.fromEntries(SLIDERS.map((name) => [name, 0]))));
-  el.rotate.addEventListener('click', () => {
-    settings.rotate = (settings.rotate + 90) % 360;
-    saveSettings();
-    renderCropInfo();
-    renderPreview(); // the crop box is redrawn once the rotated image arrives
-  });
-  el.mirror.addEventListener('click', () => {
-    settings.mirror = !settings.mirror;
-    el.mirror.setAttribute('aria-pressed', String(settings.mirror));
-    saveSettings();
-    renderPreview();
-  });
+  el.rotate.addEventListener('click', () => rotateBy(90));
+  el.mirror.addEventListener('click', toggleMirror);
   el.cropReset.addEventListener('click', () => {
     settings.crop = null;
     saveSettings();
@@ -577,10 +643,10 @@ function bindControls() {
     drawCrop();
     renderPreview();
   });
-  el.resolution.addEventListener('change', () => {
-    settings.resolution = Number(el.resolution.value);
+  el.resolution.addEventListener('input', () => {
+    settings.resolution = resolutions[Number(el.resolution.value)] ?? settings.resolution;
     saveSettings();
-    renderSizeHint();
+    renderResolution();
   });
   el.roll.addEventListener('change', async () => {
     const typed = el.roll.value.trim() || 'roll';
@@ -620,13 +686,18 @@ function bindControls() {
   el.cancel.addEventListener('click', cancelJob);
   el.alertClose.addEventListener('click', hideAlert);
 
+  bindLightbox();
+
   document.addEventListener('keydown', (event) => {
+    if (el.lightbox.open) return; // the overlay has its own keys
     if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
     // Typing in a field shouldn't scan, but after moving a slider or ticking a box it should.
     if (event.target.closest('input:not([type=range], [type=checkbox]), select, textarea, [contenteditable]')) return;
     const key = event.key.toLowerCase();
     if (key === 'p') startJob('preview');
     else if (key === 's') startJob('scan');
+    else if (key === 'm') toggleMirror();
+    else if (key === 'r') rotateBy(event.shiftKey ? -90 : 90);
     else return;
     event.preventDefault();
   });
@@ -684,11 +755,15 @@ async function loadScans() {
   } catch {
     return;
   }
+  shownScans = scans;
   el.scans.replaceChildren(...scans.map(scanCard));
   el.scansEmpty.hidden = scans.length > 0;
+  if (el.lightbox.open) renderLightbox();
 }
 
-function scanCard(scan) {
+let shownScans = []; // the scans in the gallery, newest first
+
+function scanCard(scan, index) {
   const card = document.createElement('figure');
   card.className = 'scan';
   const main = scan.files.jpeg ?? scan.files.tiff;
@@ -697,6 +772,8 @@ function scanCard(scan) {
   thumb.href = main.url;
   thumb.target = '_blank';
   thumb.rel = 'noopener';
+  thumb.title = 'Open (Ctrl+click: new tab)';
+  openOnPlainClick(thumb, index);
   if (scan.thumb) {
     const img = document.createElement('img');
     img.src = scan.thumb;
@@ -721,12 +798,106 @@ function scanCard(scan) {
     a.textContent = label;
     a.title = megabytes(file.size);
     if (kind === 'tiff') a.download = '';
-    else { a.target = '_blank'; a.rel = 'noopener'; }
+    else {
+      a.target = '_blank';
+      a.rel = 'noopener';
+      openOnPlainClick(a, index);
+    }
     files.append(a);
   }
   caption.append(name, files);
   card.append(thumb, caption);
   return card;
+}
+
+// --- Lightbox: a saved scan, full size, on top of the page -------------------------
+
+let lightboxIndex = 0;
+let lightboxOpener = null; // focused again when the lightbox closes
+
+// A plain left click opens the lightbox. Middle-click, Ctrl/Cmd/Shift+click and "open
+// in new tab" still follow the link, so a scan can always be opened in its own tab.
+function openOnPlainClick(link, index) {
+  link.addEventListener('click', (event) => {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    openLightbox(index, link);
+  });
+}
+
+function openLightbox(index, opener) {
+  lightboxIndex = index;
+  lightboxOpener = opener;
+  renderLightbox();
+  el.lightbox.showModal(); // traps focus, makes the page inert and closes on Esc
+  el.lightboxClose.focus();
+}
+
+function closeLightbox() {
+  if (el.lightbox.open) el.lightbox.close();
+}
+
+function stepLightbox(delta) {
+  const next = lightboxIndex + delta;
+  if (next < 0 || next >= shownScans.length) return;
+  lightboxIndex = next;
+  renderLightbox();
+}
+
+function renderLightbox() {
+  const scan = shownScans[lightboxIndex];
+  if (!scan) {
+    closeLightbox();
+    return;
+  }
+  el.lightboxName.textContent = scan.name;
+  el.lightboxName.title = `${scan.roll}/${scan.name}`;
+  el.lightboxCount.textContent = `${lightboxIndex + 1} of ${shownScans.length}`;
+  // Browsers can't show TIFFs, so a scan saved only as a raw TIFF shows its thumbnail.
+  const src = scan.files.jpeg?.url ?? scan.thumb;
+  el.lightboxImg.hidden = !src;
+  if (src && el.lightboxImg.getAttribute('src') !== src) el.lightboxImg.src = src;
+  el.lightboxImg.alt = scan.name;
+  el.lightboxNote.hidden = Boolean(scan.files.jpeg);
+  el.lightboxNote.textContent = src
+    ? 'Only the raw TIFF was saved. This is its small preview.'
+    : 'Only the raw TIFF was saved, which a browser can’t show. Download it below.';
+  const links = [];
+  for (const [kind, label] of [['jpeg', 'JPEG'], ['tiff', 'TIFF']]) {
+    const file = scan.files[kind];
+    if (!file) continue;
+    const a = document.createElement('a');
+    a.href = file.url;
+    a.textContent = `${label} · ${megabytes(file.size)}`;
+    if (kind === 'tiff') a.download = '';
+    else { a.target = '_blank'; a.rel = 'noopener'; }
+    links.push(a);
+  }
+  el.lightboxFiles.replaceChildren(...links);
+  el.lightboxPrev.disabled = lightboxIndex === 0;
+  el.lightboxNext.disabled = lightboxIndex === shownScans.length - 1;
+}
+
+function bindLightbox() {
+  el.lightboxClose.addEventListener('click', closeLightbox);
+  el.lightboxPrev.addEventListener('click', () => stepLightbox(-1));
+  el.lightboxNext.addEventListener('click', () => stepLightbox(1));
+  // A click on the dark area around the picture closes it.
+  el.lightbox.addEventListener('click', (event) => {
+    if (event.target === el.lightbox || event.target === el.lightboxStage) closeLightbox();
+  });
+  el.lightbox.addEventListener('keydown', (event) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    // Newest first: left goes to newer scans, right to older ones, as in the gallery.
+    if (event.key === 'ArrowLeft') stepLightbox(-1);
+    else if (event.key === 'ArrowRight') stepLightbox(1);
+    else return;
+    event.preventDefault();
+  });
+  el.lightbox.addEventListener('close', () => {
+    lightboxOpener?.focus();
+    lightboxOpener = null;
+  });
 }
 
 // --- Messages and helpers -----------------------------------------------------------
