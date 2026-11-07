@@ -221,3 +221,14 @@ def test_a_device_given_on_the_command_line_is_the_only_choice(client):
     status = client.get("/api/status").json()
     assert status["choosable"] is False
     assert [s["key"] for s in status["scanners"]] == ["fake"]
+
+
+def test_the_film_stock_goes_in_the_description(client, output):
+    client.post("/api/preview")
+    assert wait_for_job(client)["state"] == "done"
+    body = {"resolution": 100, "roll": "stock", "frame": 2, "stock": "Kodak Portra 400"}
+    assert client.post("/api/scan", json=body).status_code == 202
+    assert wait_for_job(client)["state"] == "done"
+    with Image.open(output / "stock" / "stock-02.jpg") as im:
+        assert im.getexif()[ExifTags.Base.ImageDescription] == "stock, frame 2, Kodak Portra 400"
+    assert client.post("/api/scan", json={"stock": "x" * 81}).status_code == 422

@@ -136,6 +136,7 @@ class ScanRequest(Adjustments):
     resolution: int = 3600
     crop: Crop | None = None
     levels: LockedLevels | None = None  # default: measured on the scan itself
+    stock: str = Field("", max_length=80)  # e.g. "Kodak Portra 400"; empty: not given
     roll: str = Field("roll", max_length=200)
     frame: int = Field(1, ge=0, le=9999)
     save_jpeg: bool = True
@@ -414,7 +415,7 @@ class ScannerService:
             scanned=datetime.now(),
             make=device.make if device else "",
             model=device.model if device and device.make else "",
-            description=f"{roll}, frame {req.frame}, {imaging.FILM_NAMES[req.film]}",
+            description=f"{roll}, frame {req.frame}, {req.stock.strip() or imaging.FILM_NAMES[req.film]}",
         )
         positive = imaging.render(image, adjust, levels, margin=0.02 if req.crop else 0.04)
         if req.save_jpeg:

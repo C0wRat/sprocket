@@ -491,8 +491,11 @@ h2 {
 .group-head { display: flex; align-items: baseline; justify-content: space-between; }
 .group-head .link { font-size: 12px; }
 
+.stock { display: grid; grid-template-columns: 1fr 1.4fr .8fr; gap: 6px; margin-top: 8px; }
 .presets { display: flex; gap: 8px; margin-bottom: 6px; }
-.presets select {
+.stock select { min-width: 0; }
+.stock select:disabled { opacity: .45; cursor: not-allowed; }
+.presets select, .stock select {
   flex: 1;
   min-width: 0;
   padding: 5px 8px;
