@@ -11,6 +11,23 @@ to install. Other OpticFilm models handled by SANE's `genesys` backend (7200,
 7300, 7400, 7500i, 7600i, 8200i) are detected too, but only the 8100 has been
 tested.
 
+## Screenshots
+
+The preview of a frame, with the crop box, zoom controls and **Adjust** sliders beside it:
+
+![Sprocket in the light theme, showing a preview of a colour negative](docs/screenshots/preview-light.png)
+
+After a scan, the finished picture appears under **Recent scans**. The dark theme is shown here:
+
+![Sprocket in the dark theme, with a finished scan under Recent scans](docs/screenshots/app-dark.png)
+
+Click a scan to see it full size:
+
+![A scan shown full size in the viewer](docs/screenshots/lightbox-dark.png)
+
+These were taken with a simulated scanner that returns a synthetic negative, so the
+scans are illustrations, not output from a real OpticFilm.
+
 ## Requirements
 
 - Linux with SANE's command-line tools: `sudo apt install sane-utils`.
