@@ -4,7 +4,7 @@
 #   docker run -p 8800:8800 -v ~/Pictures/Sprocket:/scans \
 #     -v /dev/bus/usb:/dev/bus/usb --device-cgroup-rule='c 189:* rmw' sprocket
 
-FROM python:3.13-slim
+FROM python:3.15-slim
 
 # sane-utils gives scanimage (and the genesys backend the OpticFilm scanners use);
 # coreutils' stdbuf, which Sprocket uses to stream the image, is already in the base.
